@@ -168,9 +168,13 @@ void* yy_handle_string(json_string_t *val)
   void *rc = NULL;
   p->args.n_strings++;
   if (j != NULL) {
+    char *stab_s = &j->stab[p->args.n_stab];
     rc = &j->strings[i];
+    memmove(stab_s, val->s, val->len);
+    val->s = stab_s;
     memmove(rc, val, sizeof(json_string_t));
   }
+  p->args.n_stab += val->len;
   return rc;
 }
 

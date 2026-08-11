@@ -51,7 +51,7 @@ int main(int argc, char **argv)
     jsiz = json(p, NULL);
     j = (json_t *)calloc(1, jsiz);
     json(p, j);
-    json_print(j, mmap_file_buf(mm));
+    json_print(j);
 
     //yy_buffer_state = yy_scan_buffer(buf, siz);
     free(p);

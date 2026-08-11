@@ -15,7 +15,7 @@ typedef enum {
 } json_value_type_t;
 
 typedef struct json_string_st {
-  size_t off;
+  const char *s;
   size_t len;
 } json_string_t;
 
@@ -56,7 +56,6 @@ typedef struct json_object_st {
   json_kv_t *first_kv;
 } json_object_t;
 
-
 typedef struct json_st {
   json_args_t           args;
   json_string_t         *strings;
@@ -67,9 +66,10 @@ typedef struct json_st {
   json_array_item_t     *array_items;
   json_int_t            *ints;
   json_double_t         *doubles;
+  char                  *stab;
   uint8_t buf[];
 } json_t;
 
 void   json_args_print(json_args_t *args);
 size_t json(json_parser_t *p, json_t *j);
-void   json_print(json_t *j, const char *buf);
+void   json_print(json_t *j);

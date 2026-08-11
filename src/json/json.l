@@ -196,7 +196,7 @@ int handle_null(const char *s, int len)
 
 int handle_string(const char *s, int len)
 {
-  yy_json_string.off = yy_compute_offset(s);
+  yy_json_string.s = s;
   yy_json_string.len = len;
   yylval = &yy_json_string;
   return T_string;

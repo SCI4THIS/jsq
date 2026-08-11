@@ -22,9 +22,10 @@ void json_args_print(json_args_t *args)
   printf("n_ints: %zu\n", args->n_ints);
   printf("n_doubles: %zu\n", args->n_doubles);
   printf("n_array_items: %zu\n", args->n_array_items);
+  printf("n_stab: %zu\n", args->n_stab);
 }
 
-void json_print(json_t *j, const char *buf)
+void json_print(json_t *j)
 {
   size_t i;
   printf("JSON @ %p\n", j);
@@ -33,9 +34,9 @@ void json_print(json_t *j, const char *buf)
   }
   printf("n_strings: %zu\n", j->args.n_strings);
   for (i=0; i<j->args.n_strings; i++) {
-    size_t off = j->strings[i].off;
+    const char *s = j->strings[i].s;
     size_t len = j->strings[i].len;
-    printf("strings[%zu]: %.*s\n", i, len, &buf[off]);
+    printf("strings[%zu]: %.*s\n", i, len, s);
   }
   printf("n_objects: %zu\n", j->args.n_objects);
   for (i=0; i<j->args.n_objects; i++) {
@@ -53,7 +54,7 @@ void json_print(json_t *j, const char *buf)
     printf("kvs[%zu]: %p { key = %p, value = %p, prev = %p, next = %p }\n", i, kv, kv->key, kv->value, kv->prev, kv->next);
   }
   printf("n_arrays: %zu\n", j->args.n_arrays);
-  for (i=0; i<j->args.n_arrays; j++) {
+  for (i=0; i<j->args.n_arrays; i++) {
     json_array_t *a = &j->arrays[i];
     printf("arrays[%zu]: %p { n = %zu, first_item = %p }\n", i, a, a->n, a->first_item);
   }
@@ -93,6 +94,8 @@ size_t json_assign_entries(json_parser_t *p, json_t *j)
   ENTRY(array_item);
 
 #undef ENTRY
+  j->stab = (char *)&j->buf[i];
+  i += p->args.n_stab;
 
   return i + sizeof(json_t);
 }

@@ -13,6 +13,7 @@ typedef struct json_args_st {
   size_t                 n_ints;
   size_t                 n_doubles;
   size_t                 n_array_items;
+  size_t                 n_stab;
 } json_args_t;
 
 typedef struct json_parser_st {
