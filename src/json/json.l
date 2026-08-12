@@ -1,5 +1,5 @@
 %{
-#define DEBUG 1
+#define DEBUG 0
 #include <json.h>
 #include <json_parser.h>
 #include "bison.out.h"

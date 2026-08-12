@@ -105,13 +105,16 @@ void* yy_handle_object(json_kv_t *last_kv)
       o->first_kv = NULL;
     } else {
       json_kv_t *kv = last_kv;
-      size_t n = 1;
-      while (kv->prev != NULL) {
+      size_t n = 0;
+      json_kv_t *kv_ = kv;
+      while (kv != NULL) {
+        kv->parent = o;
+        kv_ = kv;
         kv = kv->prev;
         n++;
       }
       o->n = n;
-      o->first_kv = kv;
+      o->first_kv = kv_;
     }
     rc = o;
   }
@@ -131,14 +134,17 @@ void* yy_handle_array(json_array_item_t *last_item)
       a->n = 0;
       a->first_item = NULL;
     } else {
-      size_t n = 1;
+      size_t n = 0;
       json_array_item_t *item = last_item;
-      while (item->prev != NULL) {
+      json_array_item_t *item_ = item;
+      while (item != NULL) {
+        item_ = item;
+        item->parent = a;
         item = item->prev;
         n++;
       }
       a->n = n;
-      a->first_item = item;
+      a->first_item = item_;
     }
     rc = a;
   }

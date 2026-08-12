@@ -11,6 +11,9 @@ int  yylex_destroy(void);
 extern int yyparse(void);
 extern int line;
 
+json_value_t *json_find_value(json_t *j, json_object_t *o);
+json_object_t *json_find_root(json_t *j);
+
 void json_args_print(json_args_t *args)
 {
   printf("JSON ARGS @ %p\n", args);
@@ -25,7 +28,7 @@ void json_args_print(json_args_t *args)
   printf("n_stab: %zu\n", args->n_stab);
 }
 
-void json_print(json_t *j)
+void json_print_debug(json_t *j)
 {
   size_t i;
   printf("JSON @ %p\n", j);
@@ -73,6 +76,106 @@ void json_print(json_t *j)
     json_array_item_t *item = &j->array_items[i];
     printf("array_items[%zu]: %p { val = %p, prev = %p, next = %p }\n", i, item, item->value, item->prev, item->next);
   }
+}
+
+void json_print_object(json_object_t *o)
+{
+  size_t i;
+  json_kv_t *kv = o->first_kv;
+
+  while (kv != NULL) {
+    printf("%.*s:\n", kv->key->len, kv->key->s);
+    kv = kv->next;
+  }
+}
+
+void json_print_string(json_string_t *s)
+{
+  printf("%.*s", s->len, s->s);
+}
+
+void json_print_int(json_int_t *i)
+{
+  printf("%d", i->n);
+}
+
+void json_print_double(json_double_t *d)
+{
+  printf("%lf", d->n);
+}
+
+void json_print_key_val(json_t *j, json_value_t *v)
+{
+  size_t i;
+  for (i=0; i<j->args.n_kvs; i++) {
+    if (v == j->kvs[i].value) {
+      json_object_t *o = j->kvs[i].parent;
+      json_print_key_val(j, json_find_value(j, o));
+      printf(".%.*s", j->kvs[i].key->len, j->kvs[i].key->s, o);
+      break;
+    }
+  }
+}
+
+void json_print(json_t *j)
+{
+  size_t i;
+  for (i=0; i<j->args.n_values; i++) {
+    json_value_t *v = &j->values[i];
+    switch (v->type) {
+      case JSON_VALUE_TYPE_INVALID:
+      case JSON_VALUE_TYPE_OBJECT:
+      case JSON_VALUE_TYPE_ARRAY:
+        continue;
+    }
+    json_print_key_val(j, v);
+    printf(": ");
+    switch (v->type) {
+      case JSON_VALUE_TYPE_INT:
+        json_print_int(v->payload);
+	break;
+      case JSON_VALUE_TYPE_DOUBLE:
+	json_print_double(v->payload);
+	break;
+      case JSON_VALUE_TYPE_TRUE:
+	printf("true");
+	break;
+      case JSON_VALUE_TYPE_FALSE:
+	printf("false");
+	break;
+      case JSON_VALUE_TYPE_STRING:
+	json_print_string(v->payload);
+	break;
+      case JSON_VALUE_TYPE_NULL:
+	printf("null");
+	break;
+    }
+    printf("\n");
+  }
+}
+
+json_value_t *json_find_value(json_t *j, json_object_t *o)
+{
+  size_t i;
+  for (i=0; i<j->args.n_values; i++) {
+    json_value_t *v = &j->values[i];
+    if (v->payload == o) {
+      return v;
+    }
+  }
+  return NULL;
+}
+
+json_object_t *json_find_root(json_t *j)
+{
+  size_t i;
+  for (i=0; i<j->args.n_objects; i++) {
+    json_object_t *o = &j->objects[i];
+    if (json_find_value(j, o) == NULL) {
+      return o;
+    }
+  }
+  return NULL;
 }
 
 size_t json_assign_entries(json_parser_t *p, json_t *j)

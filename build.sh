@@ -16,4 +16,5 @@ gcc ${INCLUDES} -o build/bison.out.c.o   -c build/bison.out.c -Ibuild
 gcc ${INCLUDES} -o build/json.c.o        -c src/json/json.c
 gcc ${INCLUDES} -o build/json_parser.c.o -c src/json/json_parser.c
 gcc ${INCLUDES} -o build/main.c.o        -c src/main.c
+gcc ${INCLUDES} -o build/args.c.o        -c src/args.c
 gcc -o build/main                           build/*\.o
