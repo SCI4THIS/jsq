@@ -27,7 +27,8 @@ void *yy_handle_kv_link(json_kv_t *prev, json_kv_t *next);
 void *yy_handle_array(json_array_item_t *last_item);
 void *yy_handle_array_item(json_value_t *val);
 void *yy_handle_array_item_link(json_array_item_t *prev, json_array_item_t *next);
-void* yy_handle_object(json_kv_t *last_value);
+void *yy_handle_object(json_kv_t *last_value);
+void *yy_handle_root_object(json_object_t *o);
 
 #define YYMALLOC yyalloc
 #define YYFREE   yyfree
@@ -44,7 +45,7 @@ void* yy_handle_object(json_kv_t *last_value);
 %%
 
 start:
-  object { $$ = $1; }
+  object { $$ = yy_handle_root_object($1); }
 ;
 
 object:
@@ -90,6 +91,12 @@ value:
 ;
 
 %%
+
+void *yy_handle_root_object(json_object_t *o)
+{
+  size_t i;
+  json_defrag(yyjson);
+}
 
 void* yy_handle_object(json_kv_t *last_kv)
 {

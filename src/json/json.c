@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <json.h>
 #include <string.h>
+#include <assert.h>
+#include <stdlib.h>
+
+#define DEBUG_DEFRAG_KVS 0
 
 void *yy_scan_buffer  (char * base, size_t  size );
 void *yy_scan_bytes ( const char *bytes, int len  );
@@ -166,16 +170,87 @@ json_value_t *json_find_value(json_t *j, json_object_t *o)
   return NULL;
 }
 
-json_object_t *json_find_root(json_t *j)
+void json_swap_kvs(json_t *j, size_t i1, size_t i2)
+{
+  json_kv_t kv_tmp;
+  json_kv_t *kv1;
+  json_kv_t *kv2;
+
+  if (i1 == i2) { return; }
+  kv1 = &j->kvs[i1];
+  kv2 = &j->kvs[i2];
+
+  if (kv1->prev == kv2) { kv1->prev = kv1; }
+  if (kv1->next == kv2) { kv1->next = kv1; }
+  if (kv2->prev == kv1) { kv2->prev = kv2; }
+  if (kv2->next == kv1) { kv2->next = kv2; }
+
+  memmove(&kv_tmp, kv1, sizeof(kv_tmp));
+  memmove(kv1, kv2, sizeof(kv_tmp));
+  memmove(kv2, &kv_tmp, sizeof(kv_tmp));
+
+  if (kv1->prev != NULL) { kv1->prev->next = kv1; }
+  if (kv1->next != NULL) { kv1->next->prev = kv1; }
+  if (kv2->prev != NULL) { kv2->prev->next = kv2; }
+  if (kv2->next != NULL) { kv2->next->prev = kv2; }
+}
+
+void json_defrag_kvs(json_t *j)
 {
   size_t i;
-  for (i=0; i<j->args.n_objects; i++) {
-    json_object_t *o = &j->objects[i];
-    if (json_find_value(j, o) == NULL) {
-      return o;
+  size_t defrag_ix = 0;
+#if DEBUG_DEFRAG_KVS
+  printf("PRE defrag\n");
+  for (i=0; i<j->args.n_kvs; i++) {
+    printf("kv [%zu] { parent=%p", i, j->kvs[i].parent);
+    if (j->kvs[i].prev != NULL) {
+      printf(", prev=%zu", j->kvs[i].prev - j->kvs);
+    }
+    if (j->kvs[i].next != NULL) {
+      printf(", next=%zu", j->kvs[i].next - j->kvs);
+    }
+    printf(" }\n");
+  }
+#endif
+  for (i=0; i<j->args.n_kvs; i++) {
+    json_kv_t *kv = &j->kvs[i];
+    if (kv->prev == NULL) {
+      printf("found kv->prev == NULL @ %zu\n", i);
+      while (kv != NULL) {
+        size_t ix = kv - j->kvs;
+	assert(defrag_ix < j->args.n_kvs);
+	json_swap_kvs(j, ix, defrag_ix);
+	kv = &j->kvs[defrag_ix];
+	defrag_ix++;
+        kv = kv->next;
+      }
     }
   }
-  return NULL;
+#if DEBUG_DEFRAG_KVS
+  printf("POST defrag\n");
+  for (i=0; i<j->args.n_kvs; i++) {
+    printf("kv [%zu] { parent=%p", i, j->kvs[i].parent);
+    if (j->kvs[i].prev != NULL) {
+      printf(", prev=%zu", j->kvs[i].prev - j->kvs);
+    }
+    if (j->kvs[i].next != NULL) {
+      printf(", next=%zu", j->kvs[i].next - j->kvs);
+    }
+    printf(" }\n");
+  }
+#endif
+}
+
+void json_defrag(json_t *j)
+{
+  if (j == NULL) { return; }
+  json_defrag_kvs(j);
+}
+
+json_object_t *json_root_object(json_t *j)
+{
+  if (j == NULL) { return NULL; }
+  return &j->objects[j->args.n_objects - 1];
 }
 
 size_t json_assign_entries(json_parser_t *p, json_t *j)

@@ -80,3 +80,4 @@ typedef struct json_st {
 void   json_args_print(json_args_t *args);
 size_t json(json_parser_t *p, json_t *j);
 void   json_print(json_t *j);
+void   json_defrag(json_t *j);
