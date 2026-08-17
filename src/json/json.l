@@ -2,6 +2,7 @@
 #define DEBUG 0
 #include <json.h>
 #include <json_parser.h>
+#include <json_int.h>
 #include "bison.out.h"
 extern json_parser_t *yyparser;
 extern json_string_t yy_json_string;

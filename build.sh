@@ -2,7 +2,7 @@
 
 rm build/*
 
-INCLUDES="-g -Isrc/mmap_file/src -Isrc/json"
+INCLUDES="-g -Isrc/mmap_file/src -Isrc/json -Isrc"
 
 # Default output is lex.yy.c
 flex -o build/flex.out.c src/json/json.l
@@ -15,6 +15,7 @@ gcc ${INCLUDES} -o build/flex.out.c.o    -c build/flex.out.c
 gcc ${INCLUDES} -o build/bison.out.c.o   -c build/bison.out.c -Ibuild
 gcc ${INCLUDES} -o build/json.c.o        -c src/json/json.c
 gcc ${INCLUDES} -o build/json_parser.c.o -c src/json/json_parser.c
+gcc ${INCLUDES} -o build/json_schema.c.o -c src/json_schema.c
 gcc ${INCLUDES} -o build/main.c.o        -c src/main.c
 gcc ${INCLUDES} -o build/args.c.o        -c src/args.c
 gcc -o build/main                           build/*\.o

@@ -37,8 +37,11 @@ args_t *args_parse(int argc, char **argv)
   }
   args = calloc(1, sizeof(args_t) +
                    (n_schemas + n_inputs) * sizeof(args_file_t));
-  args->schema = (args_file_t *)&args->buf[0];
-  args->input = (args_file_t *)&args->buf[n_schemas * sizeof(args_file_t)];
+  i = 0;
+  args->schema = (args_file_t *)&args->buf[i];
+  i += n_schemas * sizeof(args_file_t);
+  args->input = (args_file_t *)&args->buf[i];
+
   mode = 0;
   for (i=1; i<argc; i++) {
     if (strcmp(argv[i], "-i") == 0) {
@@ -76,6 +79,7 @@ void args_free(args_t *args)
   for (i=0; i<args->n_schemas; i++) {
     free(args->schema[i].key);
     free(args->schema[i].j);
+    free(args->schema[i].js);
   }
   free(args);
 }

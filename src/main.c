@@ -13,6 +13,15 @@ int yywrap(void)
   return 0; /* CONTINUE parsing */
 }
 
+json_schema_t *build_json_schema(json_t *j)
+{
+  json_schema_t *js;
+  size_t siz = json_schema(j, NULL);
+  js = calloc(1, siz);
+  json_schema(j, js);
+  return js;
+}
+
 json_t *build_json(const char *fn)
 {
   json_t *j = NULL;
@@ -50,6 +59,7 @@ int main(int argc, char **argv)
   //YY_BUFFER_STATE yy_scan_buffer (char *buf, yy_size_t siz)
   for (i=0; i<args->n_schemas; i++) {
     args->schema[i].j = build_json(args->schema[i].key);
+    args->schema[i].js = build_json_schema(args->schema[i].j);
   }
   for (i=0; i<args->n_inputs; i++) {
     args->input[i].j = build_json(args->input[i].key);
