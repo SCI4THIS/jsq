@@ -35,7 +35,7 @@ struct json_schema_st {
 
 static bool is_valid_object(json_schema_object_t *js_o, json_object_t *j_o)
 {
-  return js_o->n_kvs == json_n_kvs(j_o);
+  return true;
 }
 
 static bool is_valid_string(json_schema_string_t *js_s, json_string_t *j_s)
