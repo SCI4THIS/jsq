@@ -5,17 +5,13 @@
 #include <json.h>
 #include <json_schema.h>
 
-typedef struct args_file_st {
-  char *key;
-  json_t *j;
-  json_schema_t *js;
-} args_file_t;
-
 typedef struct args_st {
   int n_schemas;
   int n_inputs;
-  args_file_t *schema;
-  args_file_t *input;
+  char **js_fn;
+  char **j_fn;
+  json_schema_t **js;
+  json_t **j;
   char buf[];
 } args_t;
 

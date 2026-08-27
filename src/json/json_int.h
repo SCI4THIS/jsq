@@ -47,6 +47,7 @@ struct json_object_st {
 
 struct json_st {
   json_args_t           args;
+  json_value_t          *root;
   json_string_t         *strings;
   json_object_t         *objects;
   json_value_t          *values;

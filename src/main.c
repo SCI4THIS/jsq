@@ -13,15 +13,6 @@ int yywrap(void)
   return 0; /* CONTINUE parsing */
 }
 
-json_schema_t *build_json_schema(json_t *j)
-{
-  json_schema_t *js;
-  size_t siz = json_schema(j, NULL);
-  js = calloc(1, siz);
-  json_schema(j, js);
-  return js;
-}
-
 json_t *build_json(const char *fn)
 {
   json_t *j = NULL;
@@ -44,6 +35,19 @@ json_t *build_json(const char *fn)
   return j;
 }
 
+json_schema_t *build_json_schema(const char *fn)
+{
+  json_schema_t *js;
+  json_schema_args_t args = { 0 };
+  json_t *j = build_json(fn);
+  size_t siz = json_schema(j, &args, NULL);
+  js = calloc(1, siz);
+  json_schema(j, &args, js);
+  free(j);
+  return js;
+}
+
+
 int main(int argc, char **argv)
 {
   int i;
@@ -58,17 +62,20 @@ int main(int argc, char **argv)
   //YY_BUFFER_STATE yy_scan_bytes  (const char * yybytes, int  _yybytes_len )
   //YY_BUFFER_STATE yy_scan_buffer (char *buf, yy_size_t siz)
   for (i=0; i<args->n_schemas; i++) {
-    args->schema[i].j = build_json(args->schema[i].key);
-    args->schema[i].js = build_json_schema(args->schema[i].j);
+    args->js[i] = build_json_schema(args->js_fn[i]);
   }
   for (i=0; i<args->n_inputs; i++) {
-    args->input[i].j = build_json(args->input[i].key);
+    args->j[i] = build_json(args->j_fn[i]);
   }
+  /*
   for (i=0; i<args->n_schemas; i++) {
-    json_print(args->schema[i].j);
+    json_schema_print(args->js[i]);
   }
+  */
   for (i=0; i<args->n_inputs; i++) {
-    json_print(args->input[i].j);
+    /* TODO: fix for routing */
+    bool is_valid = json_schema_validate(args->js[0], args->j[i]);
+    printf("[%zu]: %s\n", i, is_valid ? "VALID" : "INVALID");
   }
   args_free(args);
   return 0;

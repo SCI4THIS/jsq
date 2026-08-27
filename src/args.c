@@ -14,6 +14,7 @@ args_t *args_parse(int argc, char **argv)
   size_t i;
   size_t n_schemas = 0;
   size_t n_inputs = 0;
+  size_t siz = 0;
   int mode = 0;
   if (argc < 4) {
     goto err;
@@ -35,12 +36,22 @@ args_t *args_parse(int argc, char **argv)
   if (mode != 1) {
     goto err;
   }
-  args = calloc(1, sizeof(args_t) +
-                   (n_schemas + n_inputs) * sizeof(args_file_t));
+  siz = sizeof(args_t);
+  siz += n_schemas * sizeof(const char *);
+  siz += n_schemas * sizeof(json_schema_t *);
+  siz += n_inputs * sizeof(const char *);
+  siz += n_inputs * sizeof(json_t *);
+  args = calloc(1, siz);
+
   i = 0;
-  args->schema = (args_file_t *)&args->buf[i];
-  i += n_schemas * sizeof(args_file_t);
-  args->input = (args_file_t *)&args->buf[i];
+  args->js_fn = (char **)&args->buf[i];
+  i += n_schemas * sizeof(char *);
+  args->js = (json_schema_t **)&args->buf[i];
+  i += n_schemas * sizeof(json_schema_t *);
+  args->j_fn = (char **)&args->buf[i];
+  i += n_inputs * sizeof(char *);
+  args->j = (json_t **)&args->buf[i];
+  i += n_inputs * sizeof(json_t *);
 
   mode = 0;
   for (i=1; i<argc; i++) {
@@ -50,11 +61,11 @@ args_t *args_parse(int argc, char **argv)
     }
     switch (mode) {
       case 0:
-	args->schema[args->n_schemas].key = strdup(argv[i]);
+	args->js_fn[args->n_schemas] = strdup(argv[i]);
         args->n_schemas++;
 	break;
       case 1:
-	args->input[args->n_inputs].key = strdup(argv[i]);
+	args->j_fn[args->n_inputs] = strdup(argv[i]);
 	args->n_inputs++;
 	break;
     }
@@ -73,13 +84,12 @@ void args_free(args_t *args)
   if (args == NULL)
     return;
   for (i=0; i<args->n_inputs; i++) {
-    free(args->input[i].key);
-    free(args->input[i].j);
+    free(args->j_fn[i]);
+    free(args->j[i]);
   }
   for (i=0; i<args->n_schemas; i++) {
-    free(args->schema[i].key);
-    free(args->schema[i].j);
-    free(args->schema[i].js);
+    free(args->js_fn[i]);
+    free(args->js[i]);
   }
   free(args);
 }

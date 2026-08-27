@@ -33,6 +33,7 @@ void *json_parser_alloc(json_parser_t *p, size_t n)
 void json_parser_reset(json_parser_t *p)
 {
   memset(&p->args, 0, sizeof(p->args));
+  p->args.n_values = 1; /* ROOT object in position 0 */
   p->mem_i = 0;
 }
 

@@ -18,7 +18,18 @@ int  yylex_destroy(void);
 extern int yyparse(void);
 extern int line;
 
-json_value_t *json_find_value(json_t *j, void *o);
+static json_value_t *json_find_value(json_t *j, void *o)
+{
+  size_t i;
+  for (i=0; i<j->args.n_values; i++) {
+    json_value_t *v = &j->values[i];
+    if (v->payload == o) {
+      return v;
+    }
+  }
+  return NULL;
+}
+
 
 void json_args_print(json_args_t *args)
 {
@@ -134,6 +145,15 @@ void json_print_double(json_double_t *d)
   printf("%lf", d->n);
 }
 
+bool json_string_eq_s(json_string_t *s1, const char *s2)
+{
+  size_t len = strlen(s2);
+  if (s1->len == len && memcmp(s1->s, s2, len) == 0) {
+    return true;
+  }
+  return false;
+}
+
 json_object_t *json_find_parent_object(json_t *j, json_value_t *v)
 {
   size_t i;
@@ -143,6 +163,21 @@ json_object_t *json_find_parent_object(json_t *j, json_value_t *v)
     }
   }
   return NULL;
+}
+
+size_t json_key(json_object_t *o, void *value_payload, const char **key)
+{
+  size_t i;
+  const char *_key = NULL;
+  assert(key != NULL);
+  for (i=0; i<o->n; i++) {
+    json_string_t *s = o->first_kv[i].key;
+    printf("json_key: %zu: %.*s, %p == %p\n", i, s->len, s->s, o->first_kv[i].value->payload, value_payload);
+    if (o->first_kv[i].value->payload == value_payload) {
+      *key = s->s;
+      return s->len;
+    }
+  }
 }
 
 json_array_t *json_find_parent_array(json_t *j, json_value_t *v)
@@ -249,18 +284,6 @@ void json_print(json_t *j)
     }
     printf("\n");
   }
-}
-
-json_value_t *json_find_value(json_t *j, void *o)
-{
-  size_t i;
-  for (i=0; i<j->args.n_values; i++) {
-    json_value_t *v = &j->values[i];
-    if (v->payload == o) {
-      return v;
-    }
-  }
-  return NULL;
 }
 
 void json_swap_array_items(json_t *j, size_t i1, size_t i2)
@@ -376,10 +399,10 @@ void json_defrag(json_t *j)
   json_defrag_array_items(j);
 }
 
-json_object_t *json_root(json_t *j)
+json_value_t *json_root(json_t *j)
 {
   if (j == NULL) { return NULL; }
-  return &j->objects[j->args.n_objects - 1];
+  return j->root;
 }
 
 json_kv_t *json_kv(json_object_t *o, const char *s, size_t len)
@@ -395,6 +418,14 @@ json_kv_t *json_kv(json_object_t *o, const char *s, size_t len)
     return &o->first_kv[i];
   }
   return NULL;
+}
+
+json_kv_t *json_kv_i(json_object_t *o, size_t i)
+{
+  if (i >= o->n) {
+    return NULL;
+  }
+  return &o->first_kv[i];
 }
 
 json_kv_t *json_kv_s(json_object_t *o, const char *s)
@@ -418,22 +449,43 @@ json_value_t *json_kv_value(json_kv_t *kv)
   return kv->value;
 }
 
+size_t json_array_n(json_array_t *a)
+{
+  if (a == NULL) {
+    return 0;
+  }
+  return a->n;
+}
+
+json_value_t *json_array(json_array_t *a, size_t i)
+{
+  if (a == NULL) {
+    return NULL;
+  }
+  if (i >= a->n) {
+    return NULL;
+  }
+  return a->first_item[i].value;
+}
+
 size_t json_string_len(json_string_t *s)
 {
+  if (s == NULL) { return 0; }
   return s->len;
 }
 
 const char *json_string_s(json_string_t *s)
 {
+  if (s == NULL) { return NULL; }
   return s->s;
 }
 
-size_t json_n_kvs(json_t *j)
+size_t json_n_kvs(json_object_t *o)
 {
-  return j->args.n_kvs;
+  return o->n;
 }
 
-json_kv_t *json_kv_i(json_t *j, size_t i)
+json_kv_t *json_all_kv_i(json_t *j, size_t i)
 {
   return &j->kvs[i];
 }
@@ -446,6 +498,78 @@ json_value_type_t json_value_type(json_value_t *v)
 void *json_value_payload(json_value_t *v)
 {
   return v->payload;
+}
+
+static size_t json_next_op(const char *s, size_t len)
+{
+  size_t i;
+  for (i=0; i<len; i++) {
+    if (s[i] == '.' || s[i] == '[') {
+      return i;
+    }
+  }
+  return len;
+}
+
+json_value_t *json_value(json_t *j, const char *key, size_t key_len)
+{
+  size_t i = 0;
+  size_t i_ = 0;
+  size_t len;
+  size_t idx = 0;
+  json_value_t *v;
+  json_object_t *o;
+  json_array_t *a;
+  json_kv_t *kv;
+  char c;
+
+  if (j == NULL) {
+    return NULL;
+  }
+
+  v = json_root(j);
+
+  i = 0;
+  while (i < key_len) {
+    c = key[i];
+    switch (c) {
+      case '.':
+        if (json_value_type(v) != JSON_VALUE_TYPE_OBJECT) {
+          return NULL;
+	}
+	i++;
+	o = json_value_payload(v);
+	len = json_next_op(&key[i], key_len - i);
+	kv = json_kv(o, &key[i], len);
+	v = json_kv_value(kv);
+	i += len;
+        break;
+      case '[':
+	if (json_value_type(v) == JSON_VALUE_TYPE_ARRAY) {
+          return NULL;
+	}
+	a = json_value_payload(v);
+	i_ = i + 1;
+	while (i_ < key_len && '0' <= key[i_] && key[i_] <= '9') {
+          i_++;
+	}
+	if (key[i_] != ']') {
+          return NULL;
+	}
+	i_++;
+	sscanf(&key[i+1], "[%zu]", &idx);
+	i = i_;
+	if (idx >= json_array_n(a)) {
+          return NULL;
+	}
+	v = json_array(a, idx);
+	break;
+      default:
+	return NULL;
+    }
+  }
+
+  return v;
 }
 
 size_t json_assign_entries(json_parser_t *p, json_t *j)
