@@ -27,12 +27,15 @@ size_t yy_compute_offset(const uint8_t *s);
 
 %option noyyalloc noyyrealloc noyyfree
 
+EXP        e[-+][:digit:]+
+INT        0|[1-9][:digit:]*
+FRAC       [.][:digit:]+
+
 %%
 
-[-+]?[0-9]*[.]?[0-9]+[Ee][-+]?[0-9]+ {
-                        return handle_exponent(yytext, yyleng); }
-[-+]?[0-9]*[.][0-9]+  { return handle_double(yytext, yyleng); }
-[-+]?[0-9]+           { return handle_integer(yytext, yyleng); }
+[-]?{INT}{FRAC}?{EXP} { return handle_exponent(yytext, yyleng); }
+[-]?{INT}{FRAC}       { return handle_double(yytext, yyleng); }
+[-]?{INT}             { return handle_integer(yytext, yyleng); }
 ["]([^"]|[\\]["])*["] { return handle_string(yytext, yyleng); }
 true                  { return handle_true(yytext, yyleng); }
 false                 { return handle_false(yytext, yyleng); }

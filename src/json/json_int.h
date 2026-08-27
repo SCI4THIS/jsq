@@ -16,14 +16,18 @@ struct json_double_st {
 
 struct json_value_st {
   json_value_type_t type;
+  json_kv_t *parent_kv;
+  json_array_item_t *parent_array_item;
   void *payload;
 };
 
 struct json_array_item_st {
+  size_t ix;
   json_value_t *value;
   struct json_array_item_st *next;
   struct json_array_item_st *prev;
   json_array_t *parent;
+  json_value_t *parent_v;
 };
 
 struct json_array_st {
@@ -37,6 +41,7 @@ struct json_kv_st {
   struct json_kv_st *next;
   struct json_kv_st *prev;
   json_object_t *parent;
+  json_value_t *parent_v;
 };
 
 struct json_object_st {
