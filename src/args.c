@@ -4,78 +4,70 @@
 
 void args_usage(int argc, char **argv)
 {
-  fprintf(stderr, "usage: %s SCHEMA(s) -i INPUT(s)\n", argv[0]);
-  fprintf(stderr, "where: SCHEMA(s) and INPUT(s) are FILE [, ...., FILE]\n");
+  fprintf(stderr, "usage: %s -c [-o FILE] FILE [.. FILE]\n", argv[0]);
+  fprintf(stderr, "compiles the files into a.jsq output file\n\n");
+  fprintf(stderr, "usage: %s SCHEMA INPUT [.. INPUT]\n", argv[0]);
+  fprintf(stderr, "where: SCHEMA is a.jsq FILE and INPUT are json FILE\n");
 }
 
 args_t *args_parse(int argc, char **argv)
 {
   args_t *args = NULL;
-  size_t i;
-  size_t n_schemas = 0;
-  size_t n_inputs = 0;
+  size_t i = 2;
+  size_t j = 0;
   size_t siz = 0;
-  int mode = 0;
-  if (argc < 4) {
+  size_t n = argc - 1;
+  args_mode_t mode = MODE_CLASSIFY;
+  if (argc < 3) {
     goto err;
   }
-  for (i=1; i<argc; i++) {
-    if (strcmp(argv[i], "-i") == 0) {
-      mode = 1;
+  if (strcmp(argv[1], "-c") == 0) {
+    mode = MODE_COMPILE;
+    n--;
+  }
+  for (; i<argc; i++) {
+    if (mode == MODE_COMPILE && strcmp(argv[i], "-o") == 0 && i<(argc-1)) {
+      i++;
+      n -= 2;
       continue;
     }
-    switch (mode) {
-      case 0:
-        n_schemas++;
-	break;
-      case 1:
-	n_inputs++;
-	break;
-    }
   }
-  if (mode != 1) {
-    goto err;
-  }
+
   siz = sizeof(args_t);
-  siz += n_schemas * sizeof(const char *);
-  siz += n_schemas * sizeof(json_schema_t *);
-  siz += n_inputs * sizeof(const char *);
-  siz += n_inputs * sizeof(json_t *);
+  siz += n * sizeof(const char *);
+  siz += n * sizeof(json_schema_t *);
+  siz += n * sizeof(json_t *);
   args = calloc(1, siz);
+  args->mode = mode;
 
   i = 0;
-  args->js_fn = (char **)&args->buf[i];
-  i += n_schemas * sizeof(char *);
-  args->js = (json_schema_t **)&args->buf[i];
-  i += n_schemas * sizeof(json_schema_t *);
-  args->j_fn = (char **)&args->buf[i];
-  i += n_inputs * sizeof(char *);
+  args->fn = (char **)&args->buf[i];
+  i += n * sizeof(char *);
   args->j = (json_t **)&args->buf[i];
-  i += n_inputs * sizeof(json_t *);
+  i += n * sizeof(json_t *);
 
-  mode = 0;
-  for (i=1; i<argc; i++) {
-    if (strcmp(argv[i], "-i") == 0) {
-      mode = 1;
+  args->n = n;
+
+  if (mode == MODE_CLASSIFY) {
+    args->io_fn = strdup(argv[1]);
+  } else {
+    args->io_fn = strdup("a.jsq");
+  }
+
+  for (j=0, i=2; i<argc; i++) {
+    if (mode == MODE_COMPILE && strcmp(argv[i], "-o") == 0 && i<(argc-1)) {
+      i++;
+      free(args->io_fn);
+      args->io_fn = strdup(argv[i]);
       continue;
     }
-    switch (mode) {
-      case 0:
-	args->js_fn[args->n_schemas] = strdup(argv[i]);
-        args->n_schemas++;
-	break;
-      case 1:
-	args->j_fn[args->n_inputs] = strdup(argv[i]);
-	args->n_inputs++;
-	break;
-    }
+    args->fn[j++] = strdup(argv[i]);
   }
 
-err:
-  if (args == NULL) {
-    args_usage(argc, argv);
-  }
   return args;
+err:
+  args_usage(argc, argv);
+  return NULL;
 }
 
 void args_free(args_t *args)
@@ -83,13 +75,15 @@ void args_free(args_t *args)
   size_t i;
   if (args == NULL)
     return;
-  for (i=0; i<args->n_inputs; i++) {
-    free(args->j_fn[i]);
-    free(args->j[i]);
+  free(args->io_fn);
+  if (args->jsh) {
+    free(args->jsh);
   }
-  for (i=0; i<args->n_schemas; i++) {
-    free(args->js_fn[i]);
-    free(args->js[i]);
+  for (i=0; i<args->n; i++) {
+    free(args->fn[i]);
+    if (args->j[i]) {
+      free(args->j[i]);
+    }
   }
   free(args);
 }

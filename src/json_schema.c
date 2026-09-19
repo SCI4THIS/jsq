@@ -3,6 +3,12 @@
 #include <stdio.h>
 #include <assert.h>
 
+typedef enum {
+  JSON_SCHEMA_TYPE_NORMAL = 0,
+  JSON_SCHEMA_TYPE_TRUE = 1,
+  JSON_SCHEMA_TYPE_FALSE = 2,
+} json_schema_type_t;
+
 struct json_schema_object_st {
   size_t n_kvs;
 };
@@ -12,7 +18,7 @@ struct json_schema_string_st {
 };
 
 struct json_schema_entry_st {
-  json_schema_type_t type;
+  json_schema_entry_type_t type;
   const char *keyidx;
   size_t keyidx_len;
   char *abs_key;
@@ -25,11 +31,19 @@ struct json_schema_entry_st {
 };
 
 struct json_schema_st {
+  json_schema_type_t type;
   json_schema_args_t args;
   json_schema_entry_t *entries;
   json_schema_string_t *strings;
   json_schema_object_t *objects;
   char *stab;
+  char buf[];
+};
+
+struct json_schema_harness_st {
+  bool is_ready_for_write;
+  size_t n;
+  json_schema_t **js;
   char buf[];
 };
 
@@ -86,12 +100,12 @@ static bool is_valid_entry(json_schema_entry_t *e, json_value_t *v)
   void *payload = json_value_payload(v);
   switch (j_t) {
     case JSON_VALUE_TYPE_OBJECT:
-      if ((e->type & JSON_SCHEMA_TYPE_OBJECT) == 0) {
+      if ((e->type & JSON_SCHEMA_ENTRY_TYPE_OBJECT) == 0) {
         return false;
       }
       return is_valid_object(e->qualifiers.object, payload);
     case JSON_VALUE_TYPE_STRING:
-      if ((e->type & JSON_SCHEMA_TYPE_STRING) == 0) {
+      if ((e->type & JSON_SCHEMA_ENTRY_TYPE_STRING) == 0) {
         return false;
       }
       return is_valid_string(e->qualifiers.string, payload);
@@ -110,6 +124,12 @@ bool json_schema_validate(json_schema_t *js, json_t *j)
   if (j == NULL) {
     return false;
   }
+  if (js->type == JSON_SCHEMA_TYPE_FALSE) {
+    return false;
+  }
+  if (js->type == JSON_SCHEMA_TYPE_TRUE) {
+    return true;
+  }
   for (i=0; i<js->args.n_entries; i++) {
     json_schema_entry_t *e = &js->entries[i];
     json_value_t *v = json_value(j, e->abs_key, e->abs_key_len);
@@ -120,26 +140,26 @@ bool json_schema_validate(json_schema_t *js, json_t *j)
   return true;
 }
 
-json_schema_type_t json_schema_type_s(json_string_t *j_s)
+json_schema_entry_type_t json_schema_entry_type_s(json_string_t *j_s)
 {
   size_t len = json_string_len(j_s);
   const char *s = json_string_s(j_s);
   if (len == 8) {
     if (memcmp(s, "\"object\"", 8) == 0) {
-      return JSON_SCHEMA_TYPE_OBJECT;
+      return JSON_SCHEMA_ENTRY_TYPE_OBJECT;
     }
     if (memcmp(s, "\"string\"", 8) == 0) {
-      return JSON_SCHEMA_TYPE_STRING;
+      return JSON_SCHEMA_ENTRY_TYPE_STRING;
     }
   }
   return 0;
 }
 
-json_schema_type_t json_schema_type(json_value_t *v)
+json_schema_entry_type_t json_schema_entry_type(json_value_t *v)
 {
   json_value_type_t type = json_value_type(v);
   if (type == JSON_VALUE_TYPE_STRING) {
-    return json_schema_type_s(json_value_payload(v));
+    return json_schema_entry_type_s(json_value_payload(v));
   }
   return 0;
 }
@@ -224,14 +244,14 @@ size_t json_schema_handle_entry(json_schema_args_t *args, json_string_t *key, js
 {
   size_t siz = 0;
   json_kv_t *kv;
-  json_schema_type_t type;
+  json_schema_entry_type_t type;
   json_value_t *v;
   json_schema_entry_t *e;
   size_t key_len;
 
   kv = json_kv_s(o, "\"type\"");
   v = json_kv_value(kv);
-  type = json_schema_type(v);
+  type = json_schema_entry_type(v);
   key_len = json_string_len(key);
   if (js != NULL) {
     size_t i = args->n_entries;
@@ -244,10 +264,10 @@ size_t json_schema_handle_entry(json_schema_args_t *args, json_string_t *key, js
   args->n_entries++;
   args->n_stab += base_key_len + 1 + key_len;
   switch (type) {
-    case JSON_SCHEMA_TYPE_OBJECT:
+    case JSON_SCHEMA_ENTRY_TYPE_OBJECT:
       siz += json_schema_handle_object(args, o, parent, e, js, base_key_len + 1 + key_len);
       break;
-    case JSON_SCHEMA_TYPE_STRING:
+    case JSON_SCHEMA_ENTRY_TYPE_STRING:
       siz += json_schema_handle_string(args, o, parent, e, js, base_key_len + 1 + key_len);
       break;
   }
@@ -259,6 +279,14 @@ void json_schema_print(json_schema_t *js)
   size_t i;
   printf("Json Schema @ %p\n", js);
   if (js == NULL) {
+    return;
+  }
+  if (js->type == JSON_SCHEMA_TYPE_TRUE) {
+    printf("always true\n");
+    return;
+  }
+  if (js->type == JSON_SCHEMA_TYPE_FALSE) {
+    printf("always false\n");
     return;
   }
   printf("n_entries: %zu\n", js->args.n_entries);
@@ -275,7 +303,7 @@ void json_schema_print(json_schema_t *js)
       printf("%.*s: ", e->abs_key_len, e->abs_key);
     }
     switch (e->type) {
-      case JSON_SCHEMA_TYPE_STRING:
+      case JSON_SCHEMA_ENTRY_TYPE_STRING:
         s = e->qualifiers.string;
         switch (s->format) {
           case JSON_SCHEMA_STRING_FORMAT_ANY:
@@ -286,7 +314,7 @@ void json_schema_print(json_schema_t *js)
 	    break;
 	}
 	break;
-      case JSON_SCHEMA_TYPE_OBJECT:
+      case JSON_SCHEMA_ENTRY_TYPE_OBJECT:
         o = e->qualifiers.object;
 	printf("{ object: %zu }\n", o->n_kvs);
         break;
@@ -302,8 +330,24 @@ size_t json_schema(json_t *j, json_schema_args_t *args, json_schema_t *js)
 
   if (j == NULL) { return 0; }
   if (args == NULL) { return 0; }
+
+  v = json_root(j);
+  if (json_value_type(v) == JSON_VALUE_TYPE_TRUE) {
+    if (js) {
+      js->type = JSON_SCHEMA_TYPE_TRUE;
+    }
+    goto end;
+  }
+  if (json_value_type(v) == JSON_VALUE_TYPE_FALSE) {
+    if (js) {
+      js->type = JSON_SCHEMA_TYPE_FALSE;
+    }
+    goto end;
+  }
+
   if (js) {
     size_t i = 0;
+    js->type = JSON_SCHEMA_TYPE_NORMAL;
     js->entries = (json_schema_entry_t *)&js->buf[i];
     i += args->n_entries * sizeof(json_schema_entry_t);
     js->strings = (json_schema_string_t *)&js->buf[i];
@@ -315,7 +359,6 @@ size_t json_schema(json_t *j, json_schema_args_t *args, json_schema_t *js)
 
   memset(args, 0, sizeof(*args));
 
-  v = json_root(j);
   assert(json_value_type(v) == JSON_VALUE_TYPE_OBJECT);
   o = json_value_payload(v);
   siz += json_schema_handle_entry(args, NULL, o, NULL, NULL, js, 0);
@@ -334,5 +377,49 @@ size_t json_schema(json_t *j, json_schema_args_t *args, json_schema_t *js)
       assert(stab_i <= js->args.n_stab);
     }
   }
+end:
   return siz;
+}
+
+size_t json_schema_harness(size_t n, json_t **j, json_schema_args_t *args, json_schema_harness_t *jsh)
+{
+  size_t i;
+  char *data = NULL;
+  size_t siz = 0;
+  if (j == NULL) { return 0; }
+  if (args == NULL) { return 0; }
+  if (jsh) {
+    jsh->n = n;
+    jsh->js = (json_schema_t **)&jsh->buf[0];
+    data = &jsh->buf[n * sizeof(json_schema_t *)];
+  }
+  for (i=0; i<n; i++) {
+    json_schema_t *js = NULL;
+    if (jsh) {
+      js = (json_schema_t *)&data[siz];
+      jsh->js[i] = js;
+    }
+    siz += json_schema(j[i], &args[i], js);
+  }
+  siz += sizeof(json_schema_harness_t);
+  return siz;
+}
+
+json_schema_t *json_schema_harness_schema(json_schema_harness_t *jsh, size_t i)
+{
+  if (jsh == NULL) { return NULL; }
+  if (i >= jsh->n) { return NULL; }
+  return jsh->js[i];
+}
+
+size_t json_schema_harness_classify(json_schema_harness_t *jsh, json_t *j)
+{
+  size_t i = 0;
+  size_t n = jsh->n;
+  for (i=n; i-->0;) {
+    if (json_schema_validate(jsh->js[i], j)) {
+      return i;
+    }
+  }
+  return i;
 }

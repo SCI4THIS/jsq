@@ -5,12 +5,17 @@
 #include <json.h>
 #include <json_schema.h>
 
+typedef enum {
+  MODE_COMPILE = 1,
+  MODE_CLASSIFY = 2,
+} args_mode_t;
+
 typedef struct args_st {
-  int n_schemas;
-  int n_inputs;
-  char **js_fn;
-  char **j_fn;
-  json_schema_t **js;
+  args_mode_t mode;
+  int n;
+  char *io_fn;
+  json_schema_harness_t *jsh;
+  char **fn;
   json_t **j;
   char buf[];
 } args_t;

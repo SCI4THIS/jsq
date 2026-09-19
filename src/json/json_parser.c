@@ -7,13 +7,15 @@ size_t json_parser(const char *s, size_t siz, json_parser_t *p)
                  64 + /* alloc yy_buffer_state */
                  256; /* YY_STACK_ALLOC */
   if (p == 0) {
-    return sizeof(json_parser_t) + mem_n;
+    goto end;
   }
   memset(&p->args, 0, sizeof(p->args));
   p->s = s;
   p->siz = siz;
   p->mem_i = 0;
   p->mem_n = mem_n;
+end:
+  return sizeof(json_parser_t) + mem_n;
 }
 
 void *json_parser_alloc(json_parser_t *p, size_t n)

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+mkdir -p build
 rm build/*
 
 INCLUDES="-g -Isrc/mmap_file/src -Isrc/json -Isrc"
