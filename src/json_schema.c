@@ -18,12 +18,12 @@ struct json_schema_string_st {
 };
 
 struct json_schema_entry_st {
-  json_schema_entry_type_t type;
-  const char *keyidx;
-  size_t keyidx_len;
-  char *abs_key;
-  size_t abs_key_len;
-  json_schema_entry_t *parent;
+  json_schema_entry_type_t   type;
+  const char                *keyidx;
+  size_t                     keyidx_len;
+  char                      *abs_key;
+  size_t                     abs_key_len;
+  json_schema_entry_t       *parent;
   struct {
     json_schema_object_t *object;
     json_schema_string_t *string;
@@ -41,7 +41,6 @@ struct json_schema_st {
 };
 
 struct json_schema_harness_st {
-  bool is_ready_for_write;
   size_t n;
   json_schema_t **js;
   char buf[];
@@ -164,18 +163,35 @@ json_schema_entry_type_t json_schema_entry_type(json_value_t *v)
   return 0;
 }
 
-size_t json_schema_handle_entry(json_schema_args_t *args, json_string_t *key, json_object_t *o, json_object_t *parent, json_schema_entry_t *e, json_schema_t *js, size_t base_key_len);
-
-size_t json_schema_handle_object(json_schema_args_t *args, json_object_t *o, json_object_t *parent, json_schema_entry_t *e, json_schema_t *js, size_t base_key_len)
-{
-  size_t siz = 0;
-  size_t i;
-  json_kv_t *kv;
+typedef struct {
+  json_schema_args_t *args;
   json_string_t *key;
-  json_object_t *properties;
-  json_object_t *child;
-  json_value_t *v;
-  json_schema_object_t *js_o = NULL;
+  json_object_t *o;
+  json_object_t *parent;
+  json_schema_entry_t *e;
+  json_schema_t *js;
+  size_t base_key_len;
+} handle_args_t;
+
+size_t json_schema_handle_entry(handle_args_t handle_args);
+
+size_t json_schema_handle_object(handle_args_t handle_args)
+{
+  json_schema_args_t   *args            = handle_args.args;
+  json_string_t        *key             = NULL;
+  json_object_t        *o               = handle_args.o;
+  json_object_t        *parent          = handle_args.parent;
+  json_schema_entry_t  *e               = handle_args.e;
+  json_schema_t        *js              = handle_args.js;
+  size_t                base_key_len    = handle_args.base_key_len;
+  size_t                siz             = 0;
+  size_t                i               = 0;
+  json_kv_t            *kv              = NULL;
+  json_object_t        *properties      = NULL;
+  json_object_t        *child           = NULL;
+  json_value_t         *v               = NULL;
+  json_schema_object_t *js_o            = NULL;
+  handle_args_t         handle_args_sub = { 0 };
 
   kv = json_kv_s(o, "\"properties\"");
   v = json_kv_value(kv);
@@ -188,12 +204,21 @@ size_t json_schema_handle_object(json_schema_args_t *args, json_object_t *o, jso
   }
   args->n_objects++;
   for (i=0; i<json_n_kvs(properties); i++) {
-    kv = json_kv_i(properties, i);
-    key = json_kv_key(kv);
-    v = json_kv_value(kv);
+    kv                           = json_kv_i(properties, i);
+    key                          = json_kv_key(kv);
+    v                            = json_kv_value(kv);
+
     assert(json_value_type(v) == JSON_VALUE_TYPE_OBJECT);
-    child = json_value_payload(v);
-    siz += json_schema_handle_entry(args, key, child, o, e, js, base_key_len);
+
+    child                        = json_value_payload(v);
+    handle_args_sub.args         = args;
+    handle_args_sub.key          = key;
+    handle_args_sub.o            = child;
+    handle_args_sub.parent       = o;
+    handle_args_sub.e            = e;
+    handle_args_sub.js           = js;
+    handle_args_sub.base_key_len = base_key_len;
+    siz += json_schema_handle_entry(handle_args_sub);
   }
   if (js_o) {
     js_o->n_kvs = json_n_kvs(properties);
@@ -211,15 +236,23 @@ size_t json_schema_abs_key(json_schema_entry_t *e, char *s)
   s[i] = '.';
   i++;
   memmove(&s[i], e->keyidx, e->keyidx_len);
+  
   return i + e->keyidx_len;
 }
 
-size_t json_schema_handle_string(json_schema_args_t *args, json_object_t *o, json_object_t *parent, json_schema_entry_t *e, json_schema_t *js, size_t base_key_len)
+size_t json_schema_handle_string(handle_args_t handle_args)
 {
-  json_kv_t *kv;
-  json_string_t *format;
-  json_value_t *v;
-  json_schema_string_t *s = NULL;
+  json_schema_args_t   *args         = handle_args.args;
+  json_string_t        *key          = NULL;
+  json_object_t        *o            = handle_args.o;
+  json_object_t        *parent       = handle_args.parent;
+  json_schema_entry_t  *e            = handle_args.e;
+  json_schema_t        *js           = handle_args.js;
+  size_t                base_key_len = handle_args.base_key_len;
+  json_kv_t            *kv           = NULL;
+  json_string_t        *format       = NULL;
+  json_value_t         *v            = NULL;
+  json_schema_string_t *s            = NULL;
 
   if (js != NULL) {
     size_t i = args->n_strings;
@@ -240,14 +273,23 @@ size_t json_schema_handle_string(json_schema_args_t *args, json_object_t *o, jso
   return sizeof(json_schema_string_t);
 }
 
-size_t json_schema_handle_entry(json_schema_args_t *args, json_string_t *key, json_object_t *o, json_object_t *parent, json_schema_entry_t *parent_e, json_schema_t *js, size_t base_key_len)
+size_t json_schema_handle_entry(handle_args_t handle_args)
 {
-  size_t siz = 0;
-  json_kv_t *kv;
-  json_schema_entry_type_t type;
-  json_value_t *v;
-  json_schema_entry_t *e;
-  size_t key_len;
+  json_schema_args_t       *args            = handle_args.args;
+  json_string_t            *key             = handle_args.key;
+  json_object_t            *o               = handle_args.o;
+  json_object_t            *parent          = handle_args.parent;
+  json_schema_entry_t      *parent_e        = handle_args.e;
+  json_schema_t            *js              = handle_args.js;
+  size_t                    base_key_len    = handle_args.base_key_len;
+  size_t                    siz             = 0;
+  json_kv_t                *kv              = NULL;
+  json_schema_entry_type_t  type            = JSON_SCHEMA_ENTRY_TYPE_INVALID;
+  json_value_t             *v               = NULL;
+  json_schema_entry_t      *e               = NULL;
+  size_t                    key_len         = 0;
+  size_t                    abs_key_len     = 0;
+  handle_args_t             handle_args_sub = { 0 };
 
   kv = json_kv_s(o, "\"type\"");
   v = json_kv_value(kv);
@@ -261,17 +303,40 @@ size_t json_schema_handle_entry(json_schema_args_t *args, json_string_t *key, js
     e->keyidx = json_string_s(key);
     e->type = type;
   }
+  abs_key_len = base_key_len + 1 + key_len;
   args->n_entries++;
-  args->n_stab += base_key_len + 1 + key_len;
+  args->n_stab                += abs_key_len;
+  handle_args_sub.args         = args;
+  handle_args_sub.key          = key;
+  handle_args_sub.o            = o;
+  handle_args_sub.parent       = parent;
+  handle_args_sub.e            = e;
+  handle_args_sub.js           = js;
+  handle_args_sub.base_key_len = abs_key_len;
   switch (type) {
     case JSON_SCHEMA_ENTRY_TYPE_OBJECT:
-      siz += json_schema_handle_object(args, o, parent, e, js, base_key_len + 1 + key_len);
+      siz += json_schema_handle_object(handle_args_sub);
       break;
     case JSON_SCHEMA_ENTRY_TYPE_STRING:
-      siz += json_schema_handle_string(args, o, parent, e, js, base_key_len + 1 + key_len);
+      siz += json_schema_handle_string(handle_args_sub);
       break;
   }
-  return siz + sizeof(json_schema_entry_t) + base_key_len + 1 + key_len;
+  return siz + sizeof(json_schema_entry_t) + abs_key_len;
+}
+
+void json_schema_harness_print(json_schema_harness_t *jsh)
+{
+  size_t i;
+  size_t n;
+  printf("Json Schema Harness @ %p\n", jsh);
+  if (jsh == NULL) {
+    return;
+  }
+  n = jsh->n;
+  for (i=0; i<n; i++) {
+    printf("\n[%d]\n\n", i);
+    json_schema_print(jsh->js[i]);
+  }
 }
 
 void json_schema_print(json_schema_t *js)
@@ -322,11 +387,20 @@ void json_schema_print(json_schema_t *js)
   }
 }
 
+size_t json_schema_true(json_schema_t *js)
+{
+  if (js) {
+    js->type = JSON_SCHEMA_TYPE_TRUE;
+  }
+  return sizeof(json_schema_t);
+}
+
 size_t json_schema(json_t *j, json_schema_args_t *args, json_schema_t *js)
 {
-  json_value_t *v;
-  json_object_t *o;
-  size_t siz = sizeof(json_schema_t);
+  json_value_t  *v           = NULL;
+  json_object_t *o           = NULL;
+  size_t         siz         = sizeof(json_schema_t);
+  handle_args_t  handle_args = { 0 };
 
   if (j == NULL) { return 0; }
   if (args == NULL) { return 0; }
@@ -361,7 +435,14 @@ size_t json_schema(json_t *j, json_schema_args_t *args, json_schema_t *js)
 
   assert(json_value_type(v) == JSON_VALUE_TYPE_OBJECT);
   o = json_value_payload(v);
-  siz += json_schema_handle_entry(args, NULL, o, NULL, NULL, js, 0);
+  handle_args.args         = args;
+  handle_args.key          = NULL;
+  handle_args.o            = o;
+  handle_args.parent       = NULL;
+  handle_args.e            = NULL;
+  handle_args.js           = js;
+  handle_args.base_key_len = 0;
+  siz += json_schema_handle_entry(handle_args);
 
   if (js) {
     size_t i;
@@ -378,7 +459,66 @@ size_t json_schema(json_t *j, json_schema_args_t *args, json_schema_t *js)
     }
   }
 end:
+  return ((siz + 15) >> 4) << 4;
+}
+
+const char *jsh_magic = "This is a generated json schema harness.\n"
+                        "It is brittle, be careful editing.";
+
+size_t json_schema_write(json_schema_t *js, char *buf, size_t len)
+{
+  size_t   siz = 0;
+  size_t   i   = 0;
+  char   *_buf = buf;
+  size_t  _len = len;
+
+#define ADVANCE() if (buf) { _buf = &buf[siz]; _len = len - siz; }
+
+  siz += snprintf(_buf, _len, "%x\n", js->type);
+  ADVANCE()
+  for (i=0; i<js->args.n_entries; i++) {
+    json_schema_entry_t *e = &js->entries[i];
+    siz += snprintf(_buf, _len, "%x %zu %.*s", e->type, e->abs_key_len, e->abs_key_len, e->abs_key);
+    ADVANCE()
+    if (e->type & JSON_SCHEMA_ENTRY_TYPE_STRING) {
+      siz += snprintf(_buf, _len, " %x", e->qualifiers.string->format);
+      ADVANCE()
+    }
+    siz += snprintf(_buf, _len, "\n");
+    ADVANCE()
+  }
   return siz;
+
+#undef ADVANCE
+}
+
+size_t json_schema_harness_write(json_schema_harness_t *jsh, char *buf, size_t len)
+{
+  size_t   siz  = 0;
+  size_t   i    = 0;
+  size_t   n    = 0;
+  char    *_buf = buf;
+  size_t   _len = len;
+
+#define ADVANCE() if (buf) { _buf = &buf[siz]; _len = len - siz; }
+
+  if (jsh == NULL) { return 0; }
+
+  n = jsh->n;
+  siz += snprintf(_buf, _len, "%s\n", jsh_magic);
+  ADVANCE()
+  for (i=0; i<n; i++) {
+    json_schema_t *js = jsh->js[i];
+    siz += snprintf(_buf, _len, "\n");
+    ADVANCE()
+    siz += json_schema_write(js, _buf, _len);
+    ADVANCE()
+  }
+  siz += snprintf(_buf, _len, "\n");
+  ADVANCE()
+  return siz;
+
+#undef ADVANCE
 }
 
 size_t json_schema_harness(size_t n, json_t **j, json_schema_args_t *args, json_schema_harness_t *jsh)
@@ -386,23 +526,28 @@ size_t json_schema_harness(size_t n, json_t **j, json_schema_args_t *args, json_
   size_t i;
   char *data = NULL;
   size_t siz = 0;
+  json_schema_t *js = NULL;
   if (j == NULL) { return 0; }
   if (args == NULL) { return 0; }
   if (jsh) {
-    jsh->n = n;
+    jsh->n = n + 1;
     jsh->js = (json_schema_t **)&jsh->buf[0];
-    data = &jsh->buf[n * sizeof(json_schema_t *)];
+    data = &jsh->buf[jsh->n * sizeof(json_schema_t *)];
   }
+  if (jsh) {
+      js = (json_schema_t *)&data[siz];
+      jsh->js[0] = js;
+  }
+  siz += json_schema_true(js);
   for (i=0; i<n; i++) {
-    json_schema_t *js = NULL;
     if (jsh) {
       js = (json_schema_t *)&data[siz];
-      jsh->js[i] = js;
+      jsh->js[i+1] = js;
     }
     siz += json_schema(j[i], &args[i], js);
   }
   siz += sizeof(json_schema_harness_t);
-  return siz;
+  return ((siz + 15) >> 4) << 4;
 }
 
 json_schema_t *json_schema_harness_schema(json_schema_harness_t *jsh, size_t i)
@@ -421,5 +566,5 @@ size_t json_schema_harness_classify(json_schema_harness_t *jsh, json_t *j)
       return i;
     }
   }
-  return i;
+  return 0;
 }

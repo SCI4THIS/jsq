@@ -90,18 +90,24 @@ void compile(args_t *args)
   size_t                  i       = 0;
   size_t                  n       = args->n;
   size_t                  jsh_siz = 0;
+  size_t                  len     = 0;
   json_t                **j       = NULL;
   json_schema_args_t     *js_args = NULL;
   json_schema_harness_t  *jsh     = NULL;
+  char                   *buf     = NULL;
 
   j = build_json_harness(args);
   js_args = calloc(n, sizeof(json_schema_args_t));
   jsh_siz = json_schema_harness(n, j, js_args, NULL);
   jsh = calloc(1, jsh_siz);
   json_schema_harness(n, j, js_args, jsh);
-  if (n == 1) {
-   json_schema_print(json_schema_harness_schema(jsh, 0));
-  }
+  len = json_schema_harness_write(jsh, NULL, 0);
+  buf = malloc(len + 1);
+  json_schema_harness_write(jsh, buf, len);
+  buf[len] = '\0';
+  fwrite(buf, 1, len, stdout);
+  free(buf);
+  //json_schema_harness_print(jsh);
   free(j);
   free(js_args);
   free(jsh);

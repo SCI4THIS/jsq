@@ -10,6 +10,7 @@ typedef enum {
   JSON_SCHEMA_ENTRY_TYPE_NULL    = (1 << 3),
   JSON_SCHEMA_ENTRY_TYPE_OBJECT  = (1 << 4),
   JSON_SCHEMA_ENTRY_TYPE_ARRAY   = (1 << 5),
+  JSON_SCHEMA_ENTRY_TYPE_INVALID = (1 << 7),
 } json_schema_entry_type_t;
 
 typedef enum {
@@ -35,5 +36,7 @@ size_t json_schema(json_t *schema, json_schema_args_t *args, json_schema_t *js);
 size_t json_schema_harness(size_t n, json_t **j, json_schema_args_t *args, json_schema_harness_t *js);
 json_schema_t *json_schema_harness_schema(json_schema_harness_t *jsh, size_t i);
 void json_schema_print(json_schema_t *js);
+void json_schema_harness_print(json_schema_harness_t *jsh);
+size_t json_schema_harness_write(json_schema_harness_t *jsh, char *buf, size_t len);
 
 #endif
