@@ -38,5 +38,6 @@ json_schema_t *json_schema_harness_schema(json_schema_harness_t *jsh, size_t i);
 void json_schema_print(json_schema_t *js);
 void json_schema_harness_print(json_schema_harness_t *jsh);
 size_t json_schema_harness_write(json_schema_harness_t *jsh, char *buf, size_t len);
+size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness_t *jsh);
 
 #endif

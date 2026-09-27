@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <json_parser.h>
 #include "args.h"
 
@@ -95,6 +96,7 @@ void compile(args_t *args)
   json_schema_args_t     *js_args = NULL;
   json_schema_harness_t  *jsh     = NULL;
   char                   *buf     = NULL;
+  FILE                   *f       = NULL;
 
   j = build_json_harness(args);
   js_args = calloc(n, sizeof(json_schema_args_t));
@@ -102,10 +104,15 @@ void compile(args_t *args)
   jsh = calloc(1, jsh_siz);
   json_schema_harness(n, j, js_args, jsh);
   len = json_schema_harness_write(jsh, NULL, 0);
-  buf = malloc(len + 1);
+  buf = malloc(len);
   json_schema_harness_write(jsh, buf, len);
-  buf[len] = '\0';
-  fwrite(buf, 1, len, stdout);
+  f = fopen(args->io_fn, "wb");
+  if (f) {
+    fwrite(buf, 1, len, f);
+    fclose(f);
+  } else {
+    fwrite(buf, 1, len, stdout);
+  }
   free(buf);
   //json_schema_harness_print(jsh);
   free(j);
@@ -115,12 +122,22 @@ void compile(args_t *args)
 
 void classify(args_t *args)
 {
-  /*
-  for (i=0; i<args->n_inputs; i++) {
-    bool is_valid = json_schema_validate(args->js[0], args->j[i]);
-    printf("[%zu]: %s\n", i, is_valid ? "VALID" : "INVALID");
+  size_t                 siz = 0;
+  json_schema_harness_t *jsh = NULL;
+  mmap_file_t           *mm  = mmap_file(args->io_fn);
+
+  if (!mm) {
+    perror("mmap_file()");
+    return;
   }
-  */
+
+  siz = json_schema_harness_read(mmap_file_buf(mm), mmap_file_size(mm), NULL);
+  printf("siz = %zu\n", siz);
+  jsh = calloc(1, siz);
+  json_schema_harness_read(mmap_file_buf(mm), mmap_file_size(mm), jsh);
+  json_schema_harness_print(jsh);
+  mmap_file_free(mm);
+  free(jsh);
 }
 
 int main(int argc, char **argv)
