@@ -125,6 +125,7 @@ void classify(args_t *args)
   size_t                 siz = 0;
   json_schema_harness_t *jsh = NULL;
   mmap_file_t           *mm  = mmap_file(args->io_fn);
+  size_t                 i   = 0;
 
   if (!mm) {
     perror("mmap_file()");
@@ -132,11 +133,22 @@ void classify(args_t *args)
   }
 
   siz = json_schema_harness_read(mmap_file_buf(mm), mmap_file_size(mm), NULL);
-  printf("siz = %zu\n", siz);
   jsh = calloc(1, siz);
   json_schema_harness_read(mmap_file_buf(mm), mmap_file_size(mm), jsh);
-  json_schema_harness_print(jsh);
   mmap_file_free(mm);
+
+  if (args->n == 0) {
+    json_schema_harness_print(jsh);
+  }
+
+  for (i=0; i<args->n; i++) {
+    size_t idx;
+    json_t *j = build_json(args->fn[i]);
+    idx = json_schema_harness_classify(jsh, j);
+    printf("[%zu]: %s\n", idx, args->fn[i]);
+    free(j);
+  }
+
   free(jsh);
 }
 

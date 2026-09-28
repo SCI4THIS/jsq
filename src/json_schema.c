@@ -593,12 +593,6 @@ size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness
   PARSE(tot_objects)
   PARSE(tot_stab)
 
-  printf("n_schemas: %zu\n", n_schemas);
-  printf("tot_entries: %zu\n", tot_entries);
-  printf("tot_strings: %zu\n", tot_strings);
-  printf("tot_objects: %zu\n", tot_objects);
-  printf("tot_stab: %zu\n", tot_stab);
-
   if (jsh == NULL) { goto end; }
   jsh->n = n_schemas;
   jsh_pos = 0;
@@ -623,13 +617,10 @@ size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness
       sub_len = len - start_i;
     }
     json_schema_t *js = (json_schema_t *)&jsh->buf[jsh_pos];
-    printf("jsh_pos: %zu\n", jsh_pos);
     jsh->js[j] = js;
-    printf("js[%d] = %p\n", j, js);
     j++;
     siz = json_schema_read(&buf[start_i], sub_len, js);
     jsh_pos += siz;
-    printf("json_schema_read size: %zu\n", siz);
     i += sub_len + 2;
   } while (s != NULL);
 

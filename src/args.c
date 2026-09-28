@@ -4,9 +4,9 @@
 
 void args_usage(int argc, char **argv)
 {
-  fprintf(stderr, "usage: %s -c [-o FILE] FILE [.. FILE]\n", argv[0]);
+  fprintf(stderr, "usage: %s -c [-o FILE] [FILE .. FILE]\n", argv[0]);
   fprintf(stderr, "compiles the files into a.jsq output file\n\n");
-  fprintf(stderr, "usage: %s SCHEMA INPUT [.. INPUT]\n", argv[0]);
+  fprintf(stderr, "usage: %s SCHEMA [INPUT .. INPUT]\n", argv[0]);
   fprintf(stderr, "where: SCHEMA is a.jsq FILE and INPUT are json FILE\n");
 }
 
@@ -18,7 +18,7 @@ args_t *args_parse(int argc, char **argv)
   size_t siz = 0;
   size_t n = argc - 1;
   args_mode_t mode = MODE_CLASSIFY;
-  if (argc < 3) {
+  if (argc < 2) {
     goto err;
   }
   if (strcmp(argv[1], "-c") == 0) {
@@ -46,13 +46,14 @@ args_t *args_parse(int argc, char **argv)
   args->j = (json_t **)&args->buf[i];
   i += n * sizeof(json_t *);
 
-  args->n = n;
 
   if (mode == MODE_CLASSIFY) {
     args->io_fn = strdup(argv[1]);
+    n--;
   } else {
     args->io_fn = strdup("a.jsq");
   }
+  args->n = n;
 
   for (j=0, i=2; i<argc; i++) {
     if (mode == MODE_COMPILE && strcmp(argv[i], "-o") == 0 && i<(argc-1)) {
