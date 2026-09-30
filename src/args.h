@@ -2,8 +2,9 @@
 #define ARGS_H__ 1
 
 #include <mmap_file.h>
-#include <json.h>
-#include <json_schema.h>
+#include "json.h"
+#include "schema.h"
+#include "harness.h"
 
 typedef enum {
   MODE_COMPILE = 1,

@@ -1,5 +1,5 @@
-#include <json_parser.h>
 #include <string.h>
+#include "parser.h"
 
 size_t json_parser(const char *s, size_t siz, json_parser_t *p)
 {

@@ -1,5 +1,5 @@
-#ifndef JSON_SCHEMA_H__
-#define JSON_SCHEMA_H__ 1
+#ifndef SCHEMA_H__
+#define SCHEMA_H__ 1
 
 #include <json.h>
 
@@ -25,20 +25,15 @@ typedef struct json_schema_args_st {
   size_t n_stab;
 } json_schema_args_t;
 
-typedef struct json_schema_object_st  json_schema_object_t;
-typedef struct json_schema_string_st  json_schema_string_t;
-typedef struct json_schema_entry_st   json_schema_entry_t;
 typedef struct json_schema_st         json_schema_t;
-typedef struct json_schema_harness_st json_schema_harness_t;
 
 bool json_schema_validate(json_schema_t *schema, json_t *input);
 size_t json_schema(json_t *schema, json_schema_args_t *args, json_schema_t *js);
-size_t json_schema_harness(size_t n, json_t **j, json_schema_args_t *args, json_schema_harness_t *js);
-json_schema_t *json_schema_harness_schema(json_schema_harness_t *jsh, size_t i);
 void json_schema_print(json_schema_t *js);
-void json_schema_harness_print(json_schema_harness_t *jsh);
-size_t json_schema_harness_write(json_schema_harness_t *jsh, char *buf, size_t len);
-size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness_t *jsh);
-size_t json_schema_harness_classify(json_schema_harness_t *jsh, json_t *j);
+size_t json_schema_write(json_schema_t *js, char *buf, size_t len);
+size_t json_schema_true(json_schema_t *js);
+const json_schema_args_t *json_schema_args(json_schema_t *js);
+size_t json_schema_read(const char *buf, size_t len, json_schema_t *js);
+size_t json_schema_siz(size_t n_schemas, json_schema_args_t *args);
 
 #endif

@@ -1,7 +1,11 @@
-#include "json_schema.h"
+#include "schema.h"
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+
+typedef struct json_schema_object_st  json_schema_object_t;
+typedef struct json_schema_string_st  json_schema_string_t;
+typedef struct json_schema_entry_st   json_schema_entry_t;
 
 typedef enum {
   JSON_SCHEMA_TYPE_NORMAL = 0,
@@ -37,12 +41,6 @@ struct json_schema_st {
   json_schema_string_t *strings;
   json_schema_object_t *objects;
   char *stab;
-  char buf[];
-};
-
-struct json_schema_harness_st {
-  size_t n;
-  json_schema_t **js;
   char buf[];
 };
 
@@ -324,21 +322,6 @@ size_t json_schema_handle_entry(handle_args_t handle_args)
   return siz + sizeof(json_schema_entry_t) + abs_key_len;
 }
 
-void json_schema_harness_print(json_schema_harness_t *jsh)
-{
-  size_t i;
-  size_t n;
-  printf("Json Schema Harness @ %p\n", jsh);
-  if (jsh == NULL) {
-    return;
-  }
-  n = jsh->n;
-  for (i=0; i<n; i++) {
-    printf("\n[%d]\n\n", i);
-    json_schema_print(jsh->js[i]);
-  }
-}
-
 void json_schema_print(json_schema_t *js)
 {
   size_t i;
@@ -462,13 +445,77 @@ end:
   return siz;
 }
 
-const char jsh_magic[] = "This is a generated json schema harness.\n"
-                         "It is brittle, be careful editing.";
-#define JSH_MAGIC_LEN (sizeof(jsh_magic) - 1)
+size_t json_schema_siz(size_t n_schemas, json_schema_args_t *args)
+{
+  return n_schemas * sizeof(json_schema_t) +
+         args->n_entries * sizeof(json_schema_entry_t) +
+	 args->n_strings * sizeof(json_schema_string_t) +
+	 args->n_objects * sizeof(json_schema_object_t) +
+	 args->n_stab;
+}
+
+static json_schema_type_t json_schema_entry_read(const char *buf, size_t len, json_schema_entry_t *e, json_schema_args_t *args)
+{
+  size_t i = 0;
+  const char *decstr = "0123456789";
+  json_schema_type_t type;
+  size_t keylen;
+  if ((i + 9) >= len)              { goto err; }
+  if (!strchr(decstr, buf[i+0]))   { goto err; }
+  if (!strchr(decstr, buf[i+1]))   { goto err; }
+  if (!strchr(decstr, buf[i+2]))   { goto err; }
+  if (buf[i+3] != ' ')             { goto err; }
+  if (!strchr(decstr, buf[i+4]))   { goto err; }
+  if (!strchr(decstr, buf[i+5]))   { goto err; }
+  if (!strchr(decstr, buf[i+6]))   { goto err; }
+  if (!strchr(decstr, buf[i+7]))   { goto err; }
+  if (buf[i+8] != ' ')             { goto err; }
+  sscanf(buf, "%03d %04d ", &type, &keylen);
+
+  i = 9;
+  if ((i + keylen) >= len)         { goto err; }
+  i += keylen;
+
+  if (type & JSON_SCHEMA_ENTRY_TYPE_STRING) {
+    json_schema_string_format_t format;
+    if ((i + 3) >= len)            { goto err; }
+    if (buf[i] != ' ')             { goto err; }
+    i++;
+    if (!strchr(decstr, buf[i+0])) { goto err; }
+    if (!strchr(decstr, buf[i+1])) { goto err; }
+    if (strchr(decstr, buf[i+2]))  { goto err; }
+    sscanf(&buf[i], "%02d", &format);
+    i += 2;
+    if (e) {
+      e->qualifiers.string->format = format;
+    }
+  }
+
+  if (i != len - 1)                { goto err; }
+  if (buf[i] != '\n')              { goto err; }
+
+  if (e) {
+    e->type = type;
+    e->abs_key_len = keylen;
+    if (keylen > 0) {
+      memcpy(e->abs_key, &buf[9], keylen);
+    }
+  }
+
+  args->n_entries++;
+  if (type & JSON_SCHEMA_ENTRY_TYPE_STRING) { args->n_strings++; }
+  if (type & JSON_SCHEMA_ENTRY_TYPE_OBJECT) { args->n_objects++; }
+  args->n_stab += keylen;
+
+  return type;
+err:
+  return JSON_SCHEMA_ENTRY_TYPE_INVALID;
+}
 
 size_t json_schema_read(const char *buf, size_t len, json_schema_t *js)
 {
   size_t i = 0;
+  size_t _i;
   size_t i_entries = 0;
   size_t i_strings = 0;
   size_t i_objects = 0;
@@ -480,158 +527,87 @@ size_t json_schema_read(const char *buf, size_t len, json_schema_t *js)
   const char s_n_objects[] = "n_objects";
   const char s_n_stab[] = "n_stab";
   size_t type;
-  size_t n_entries;
-  size_t n_strings;
-  size_t n_objects;
-  size_t n_stab;
+  json_schema_args_t args = { 0 };
+  json_schema_args_t tally_args = { 0 };
 
-#define PARSE(v) \
-  if ((i + sizeof(s_##v) - 1) >= len) { return 0; } \
-  if (memcmp(&buf[i], s_##v, sizeof(s_##v) - 1) != 0) { return 0; } \
-  i += sizeof(s_##v) - 1; \
-  if (!sscanf(&buf[i], " = %zu", &v)) { return 0; } \
-  while (buf[i] != '\n' && (i < len)) { i++; } \
-  i++;
+#define PARSE(s, v) \
+  i += sizeof(s) - 1; \
+  sscanf(&buf[i], " = %zu", &(v)); \
+  while (i < len && buf[i++] != '\n');
 
-  PARSE(type)
-  PARSE(n_entries)
-  PARSE(n_strings)
-  PARSE(n_objects)
-  PARSE(n_stab)
+#define CHECK(s, v) \
+  _i = i; \
+  if ((i + sizeof(s) - 1) >= len) { return 0; } \
+  if (memcmp(&buf[i], s, sizeof(s) - 1) != 0) { return 0; } \
+  i += sizeof(s) - 1; \
+  if (memcmp(&buf[i], " = ", 3) != 0) { return 0; } \
+  i += 3; \
+  if (!strchr("0123456789", buf[i])) { return 0; } \
+  while (i < len && strchr("0123456789", buf[i++])); \
+  i = _i; \
+  PARSE(s, v)
 
-  js->type = (json_schema_type_t)type;
-  js_pos = 0;
-  js->entries = (json_schema_entry_t *)&js->buf[js_pos];
-  js_pos += n_entries * sizeof(json_schema_entry_t);
-  js->strings = (json_schema_string_t *)&js->buf[js_pos];
-  js_pos += n_strings * sizeof(json_schema_string_t);
-  js->objects = (json_schema_object_t *)&js->buf[js_pos];
-  js_pos += n_objects * sizeof(json_schema_object_t);
-  js->stab = (char *)&js->buf[js_pos];
+  if (!js) {
+    CHECK(s_type, type);
+    CHECK(s_n_entries, args.n_entries);
+    CHECK(s_n_strings, args.n_strings);
+    CHECK(s_n_objects, args.n_objects);
+    CHECK(s_n_stab, args.n_stab);
+  } else {
+    PARSE(s_type, type);
+    PARSE(s_n_entries, args.n_entries);
+    PARSE(s_n_strings, args.n_strings);
+    PARSE(s_n_objects, args.n_objects);
+    PARSE(s_n_stab, args.n_stab);
+  }
 
-  js->args.n_entries = n_entries;
-  js->args.n_strings = n_strings;
-  js->args.n_objects = n_objects;
-  js->args.n_stab = n_stab;
-
-  if (i >= len) { goto end; }
+  if (js) {
+    size_t js_pos = 0;
+    js->type = (json_schema_type_t)type;
+    js->entries = (json_schema_entry_t *)&js->buf[js_pos];
+    js_pos += args.n_entries * sizeof(json_schema_entry_t);
+    js->strings = (json_schema_string_t *)&js->buf[js_pos];
+    js_pos += args.n_strings * sizeof(json_schema_string_t);
+    js->objects = (json_schema_object_t *)&js->buf[js_pos];
+    js_pos += args.n_objects * sizeof(json_schema_object_t);
+    js->stab = (char *)&js->buf[js_pos];
+    memcpy(&js->args, &args, sizeof(args));
+  }
 
   while (i<len) {
-    json_schema_entry_t *e = &js->entries[i_entries];
-    i_entries++;
-    if (!sscanf(&buf[i], "%x", &e->type)) { return 0; }
-    while (buf[i] != ' ' && i<len) { i++; }
-    i++;
-    if (!sscanf(&buf[i], "%zu", &e->abs_key_len)) { return 0; }
-    while (buf[i] != ' ' && buf[i] != '\n' && i<len) { i++; }
-    if (buf[i] == '\n') { i++; continue; }
-    i++;
-    if (e->abs_key_len > 0) {
-      e->abs_key = &js->stab[stab_i];
-      memcpy(e->abs_key, &buf[i], e->abs_key_len);
-      stab_i += e->abs_key_len;
+    json_schema_entry_t *e = NULL;
+    size_t start_i = i;
+    json_schema_entry_type_t type;
+    while (i<len && buf[i++] != '\n');
+    if (js) {
+      e = &js->entries[tally_args.n_entries];
+      e->qualifiers.string = &js->strings[tally_args.n_strings];
+      e->qualifiers.object = &js->objects[tally_args.n_objects];
+      e->abs_key = &js->stab[tally_args.n_stab];
     }
-    i+= e->abs_key_len;
-    if (e->type & JSON_SCHEMA_ENTRY_TYPE_STRING) {
-      int format;
-      json_schema_string_t *s = &js->strings[i_strings];
-      i_strings++;
-      e->qualifiers.string = s;
-      while (buf[i] != ' ' && i<len) { i++; }
-      i++;
-      if (!sscanf(&buf[i], "%x", &format)) {
-        printf("Failed to scan string format at %d \"%.*s\"\n", i, 5, &buf[i]);
-        return 0;
+    type = json_schema_entry_read(&buf[start_i], i - start_i, e, &tally_args);
+    if (type == JSON_SCHEMA_ENTRY_TYPE_INVALID) {
+      return 0;
+    }
+    if (e) {
+      if (e->abs_key_len == 0) {
+        e->abs_key = NULL;
       }
-      s->format = format;
+      if (!(type & JSON_SCHEMA_ENTRY_TYPE_STRING)) {
+        e->qualifiers.string = NULL;
+      }
+      if (!(type & JSON_SCHEMA_ENTRY_TYPE_OBJECT)) {
+        e->qualifiers.object = NULL;
+      }
     }
-    if (e->type & JSON_SCHEMA_ENTRY_TYPE_OBJECT) {
-      json_schema_object_t *o = &js->objects[i_objects];
-      i_objects++;
-      e->qualifiers.object = o;
-    }
-    while (buf[i] != '\n' && i<len) { i++; }
-    i++;
   }
 
-end:
-  return sizeof(json_schema_t) +
-         n_entries * sizeof(json_schema_entry_t) +
-	 n_strings * sizeof(json_schema_string_t) +
-	 n_objects * sizeof(json_schema_object_t) +
-	 n_stab;
-}
-
-size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness_t *jsh)
-{
-  size_t i;
-  size_t j = 0;
-  size_t start_i;
-  size_t siz;
-  char *s;
-  size_t jsh_pos = 0;
-  const char s_n_schemas[] = "n_schemas";
-  const char s_tot_entries[] = "tot_entries";
-  const char s_tot_strings[] = "tot_strings";
-  const char s_tot_objects[] = "tot_objects";
-  const char s_tot_stab[] = "tot_stab";
-  size_t n_schemas;
-  size_t tot_entries;
-  size_t tot_strings;
-  size_t tot_objects;
-  size_t tot_stab;
-  size_t sub_len;
-
-  if (memcmp(jsh_magic, buf, JSH_MAGIC_LEN) != 0) { return 0; }
-  i = JSH_MAGIC_LEN;
-  if (buf[i] != '\n') { return 0; }
-  i++;
-
-  PARSE(n_schemas)
-  PARSE(tot_entries)
-  PARSE(tot_strings)
-  PARSE(tot_objects)
-  PARSE(tot_stab)
-
-  if (jsh == NULL) { goto end; }
-  jsh->n = n_schemas;
-  jsh_pos = 0;
-  jsh->js = (json_schema_t **)&jsh->buf[jsh_pos];
-  jsh_pos += sizeof(json_schema_t *) * n_schemas;
-
-  if (buf[i] != '\n') { return 0; }
-  i++;
-  start_i = i;
-  s = strstr(&buf[i], "\n\n");
-  if (s) {
-    sub_len = s - &buf[start_i];
-  } else {
-    sub_len = len - start_i;
+  if (tally_args.n_stab < args.n_stab) {
+    tally_args.n_stab = args.n_stab;
   }
-  do {
-    start_i = i;
-    s = strstr(&buf[i], "\n\n");
-    if (s) {
-      sub_len = s - &buf[start_i];
-    } else {
-      sub_len = len - start_i;
-    }
-    json_schema_t *js = (json_schema_t *)&jsh->buf[jsh_pos];
-    jsh->js[j] = js;
-    j++;
-    siz = json_schema_read(&buf[start_i], sub_len, js);
-    jsh_pos += siz;
-    i += sub_len + 2;
-  } while (s != NULL);
+  if (memcmp(&tally_args, &args, sizeof(args)) != 0) { return 0; }
 
-end:
-  return sizeof(json_schema_harness_t) +
-    n_schemas * sizeof(json_schema_t) +
-    tot_entries * sizeof(json_schema_entry_t) +
-    tot_entries * sizeof(json_schema_entry_t *) +
-    tot_strings * sizeof(json_schema_string_t) +
-    tot_objects * sizeof(json_schema_object_t) +
-    tot_stab;
+  return json_schema_siz(1, &args);
 }
 
 size_t json_schema_write(json_schema_t *js, char *buf, size_t len)
@@ -661,12 +637,12 @@ size_t json_schema_write(json_schema_t *js, char *buf, size_t len)
     json_schema_entry_type_t e_t = e->type;
     size_t key_len = e->abs_key_len;
     const char *key = e->abs_key;
-    siz += snprintf(_buf, _len, "%x %zu %.*s", e_t, key_len, key_len, key);
+    siz += snprintf(_buf, _len, "%03d %04zu %.*s", e_t, key_len, key_len, key);
     ADVANCE()
     if (e_t & JSON_SCHEMA_ENTRY_TYPE_STRING) {
       json_schema_string_format_t format;
       format = e->qualifiers.string->format;
-      siz += snprintf(_buf, _len, " %x", format);
+      siz += snprintf(_buf, _len, " %02d", format);
       ADVANCE()
     }
     siz += snprintf(_buf, _len, "\n");
@@ -677,100 +653,11 @@ size_t json_schema_write(json_schema_t *js, char *buf, size_t len)
 #undef ADVANCE
 }
 
-size_t json_schema_harness_write(json_schema_harness_t *jsh, char *buf, size_t len)
+const json_schema_args_t *json_schema_args(json_schema_t *js)
 {
-  size_t   siz       = 0;
-  size_t   i         = 0;
-  size_t   n         = 0;
-  char    *_buf      = buf;
-  size_t   _len      = len;
-  size_t   n_entries = 0;
-  size_t   n_strings = 0;
-  size_t   n_objects = 0;
-  size_t   n_stab    = 0;
-
-#define ADVANCE() if (buf) { _buf = &buf[siz]; _len = len - siz; }
-
-  if (jsh == NULL) { return 0; }
-
-  n = jsh->n;
-  siz += snprintf(_buf, _len, "%s\n", jsh_magic);
-  ADVANCE()
-  for (i=0; i<n; i++) {
-    json_schema_t *js = jsh->js[i];
-    n_entries += js->args.n_entries;
-    n_strings += js->args.n_strings;
-    n_objects += js->args.n_objects;
-    n_stab    += js->args.n_stab;
+  if (!js) {
+    return NULL;
   }
-  siz += snprintf(_buf, _len, "n_schemas = %zu\n", n);
-  ADVANCE()
-  siz += snprintf(_buf, _len, "tot_entries = %zu\n", n_entries);
-  ADVANCE()
-  siz += snprintf(_buf, _len, "tot_strings = %zu\n", n_strings);
-  ADVANCE()
-  siz += snprintf(_buf, _len, "tot_objects = %zu\n", n_objects);
-  ADVANCE()
-  siz += snprintf(_buf, _len, "tot_stab = %zu\n", n_stab);
-  ADVANCE()
-  for (i=0; i<n; i++) {
-    json_schema_t *js = jsh->js[i];
-    siz += snprintf(_buf, _len, "\n");
-    ADVANCE()
-    siz += json_schema_write(js, _buf, _len);
-    ADVANCE()
-  }
-  siz += snprintf(_buf, _len, "\n");
-  ADVANCE()
-  return siz;
-
-#undef ADVANCE
+  return &js->args;
 }
 
-size_t json_schema_harness(size_t n, json_t **j, json_schema_args_t *args, json_schema_harness_t *jsh)
-{
-  size_t i;
-  char *data = NULL;
-  size_t siz = 0;
-  json_schema_t *js = NULL;
-  if (j == NULL) { return 0; }
-  if (args == NULL) { return 0; }
-  if (jsh) {
-    jsh->n = n + 1;
-    jsh->js = (json_schema_t **)&jsh->buf[0];
-    data = &jsh->buf[jsh->n * sizeof(json_schema_t *)];
-  }
-  if (jsh) {
-      js = (json_schema_t *)&data[siz];
-      jsh->js[0] = js;
-  }
-  siz += json_schema_true(js);
-  for (i=0; i<n; i++) {
-    if (jsh) {
-      js = (json_schema_t *)&data[siz];
-      jsh->js[i+1] = js;
-    }
-    siz += json_schema(j[i], &args[i], js);
-  }
-  siz += sizeof(json_schema_harness_t) + (n + 1) * sizeof(json_schema_t *);
-  return siz;
-}
-
-json_schema_t *json_schema_harness_schema(json_schema_harness_t *jsh, size_t i)
-{
-  if (jsh == NULL) { return NULL; }
-  if (i >= jsh->n) { return NULL; }
-  return jsh->js[i];
-}
-
-size_t json_schema_harness_classify(json_schema_harness_t *jsh, json_t *j)
-{
-  size_t i = 0;
-  size_t n = jsh->n;
-  for (i=n; i-->0;) {
-    if (json_schema_validate(jsh->js[i], j)) {
-      return i;
-    }
-  }
-  return 0;
-}

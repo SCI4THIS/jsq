@@ -4,7 +4,7 @@ mkdir -p build
 rm build/*
 
 SANITIZE="-fsanitize=address -g"
-INCLUDES="-Isrc/mmap_file/src -Isrc/json -Isrc"
+INCLUDES="-Isrc/mmap_file/src -Isrc/json -Isrc -Ibuild"
 
 # Default output is lex.yy.c
 flex -o build/flex.out.c src/json/json.l
@@ -13,11 +13,11 @@ flex -o build/flex.out.c src/json/json.l
 bison -d -o build/bison.out.c src/json/json.y
 
 cp src/mmap_file/build/mmap_file_nix.c.o    build/mmap_file_nix.c.o
-gcc ${SANITIZE} ${INCLUDES} -o build/flex.out.c.o    -c build/flex.out.c
-gcc ${SANITIZE} ${INCLUDES} -o build/bison.out.c.o   -c build/bison.out.c -Ibuild
-gcc ${SANITIZE} ${INCLUDES} -o build/json.c.o        -c src/json/json.c
-gcc ${SANITIZE} ${INCLUDES} -o build/json_parser.c.o -c src/json/json_parser.c
-gcc ${SANITIZE} ${INCLUDES} -o build/json_schema.c.o -c src/json_schema.c
-gcc ${SANITIZE} ${INCLUDES} -o build/main.c.o        -c src/main.c
-gcc ${SANITIZE} ${INCLUDES} -o build/args.c.o        -c src/args.c
+for FILE in build/flex.out.c build/bison.out.c src/json/json.c src/json/parser.c src/json/schema.c src/json/harness.c src/main.c src/args.c
+do
+  BASENAME=$(basename ${FILE})
+  gcc ${SANITIZE} ${INCLUDES} -o build/${BASENAME}.o -c ${FILE}
+  echo "BASENAME: ${BASENAME}"
+done
+
 gcc ${SANITIZE} -o build/main                           build/*\.o

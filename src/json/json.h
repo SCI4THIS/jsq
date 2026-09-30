@@ -2,7 +2,7 @@
 #define JSON_H__ 1
 
 #include <stdint.h>
-#include <json_parser.h>
+#include "parser.h"
 
 typedef enum {
   JSON_VALUE_TYPE_INVALID = 0,

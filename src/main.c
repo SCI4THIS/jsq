@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <json_parser.h>
+#include "parser.h"
 #include "args.h"
 
 
@@ -133,6 +133,11 @@ void classify(args_t *args)
   }
 
   siz = json_schema_harness_read(mmap_file_buf(mm), mmap_file_size(mm), NULL);
+  if (siz == 0) {
+    fprintf(stderr, "Invalid jsq file\n");
+    mmap_file_free(mm);
+    return;
+  }
   jsh = calloc(1, siz);
   json_schema_harness_read(mmap_file_buf(mm), mmap_file_size(mm), jsh);
   mmap_file_free(mm);

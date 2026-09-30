@@ -1,9 +1,9 @@
 %{
 #include <stdio.h>
 #include <string.h>
-#include <json.h>
-#include <json_parser.h>
-#include <json_int.h>
+#include "json.h"
+#include "parser.h"
+#include "json_int.h"
 #define DEBUG 0
 json_string_t  yy_json_string = { 0 };
 json_string_t *key;
