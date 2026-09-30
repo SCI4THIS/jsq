@@ -512,7 +512,7 @@ err:
   return JSON_SCHEMA_ENTRY_TYPE_INVALID;
 }
 
-size_t json_schema_read(const char *buf, size_t len, json_schema_t *js)
+size_t json_schema_read(const char *buf, size_t len, json_schema_t *js, json_schema_args_t *tot_args)
 {
   size_t i = 0;
   size_t _i;
@@ -606,6 +606,10 @@ size_t json_schema_read(const char *buf, size_t len, json_schema_t *js)
     tally_args.n_stab = args.n_stab;
   }
   if (memcmp(&tally_args, &args, sizeof(args)) != 0) { return 0; }
+  tot_args->n_entries += tally_args.n_entries;
+  tot_args->n_objects += tally_args.n_objects;
+  tot_args->n_strings += tally_args.n_strings;
+  tot_args->n_stab    += tally_args.n_stab;
 
   return json_schema_siz(1, &args);
 }

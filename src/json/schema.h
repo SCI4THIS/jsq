@@ -33,7 +33,7 @@ void json_schema_print(json_schema_t *js);
 size_t json_schema_write(json_schema_t *js, char *buf, size_t len);
 size_t json_schema_true(json_schema_t *js);
 const json_schema_args_t *json_schema_args(json_schema_t *js);
-size_t json_schema_read(const char *buf, size_t len, json_schema_t *js);
+size_t json_schema_read(const char *buf, size_t len, json_schema_t *js, json_schema_args_t *tally_args);
 size_t json_schema_siz(size_t n_schemas, json_schema_args_t *args);
 
 #endif

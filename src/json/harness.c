@@ -41,6 +41,7 @@ size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness
   const char s_tot_stab[] = "tot_stab";
   size_t n_schemas;
   json_schema_args_t args = { 0 };
+  json_schema_args_t tally_args = { 0 };
   size_t sub_len;
 
   if (memcmp(jsh_magic, buf, JSH_MAGIC_LEN) != 0) { return 0; }
@@ -51,7 +52,7 @@ size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness
 #define PARSE(s, v) \
   i += sizeof(s) - 1; \
   sscanf(&buf[i], " = %zu", &(v)); \
-  while (buf[i++] != '\n');
+  while (i < len && buf[i++] != '\n');
 
 #define CHECK(s, v) \
   _i = i; \
@@ -61,7 +62,7 @@ size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness
   if (memcmp(&buf[i], " = ", 3) != 0) { return 0; } \
   i += 3; \
   if (!strchr("0123456789", buf[i])) { return 0; } \
-  while (strchr("0123456789", buf[i++])); \
+  while (i < len && strchr("0123456789", buf[i++])); \
   i = _i; \
   PARSE(s, v)
 
@@ -109,11 +110,13 @@ size_t json_schema_harness_read(const char *buf, size_t len, json_schema_harness
       jsh->js[j] = js;
       j++;
     }
-    siz = json_schema_read(&buf[start_i], sub_len, js);
+    siz = json_schema_read(&buf[start_i], sub_len, js, &tally_args);
     if (siz == 0) { return 0; }
     jsh_pos += siz;
     i += sub_len + 2;
   } while (s != NULL);
+
+  if (memcmp(&tally_args, &args, sizeof(args)) != 0) { return 0; }
 
 end:
   return

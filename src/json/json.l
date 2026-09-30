@@ -27,7 +27,7 @@ size_t yy_compute_offset(const uint8_t *s);
 
 %option noyyalloc noyyrealloc noyyfree
 
-EXP        [eE][-+][:digit:]+
+EXP        [eE][-+]?[:digit:]+
 INT        0|[1-9][:digit:]*
 FRAC       [.][:digit:]+
 
@@ -200,6 +200,24 @@ int handle_null(const char *s, int len)
 
 int handle_string(const char *s, int len)
 {
+  size_t i;
+  const char *hexstr = "0123456789abcdefABCDEF";
+  for (i=0; i<(len-1); i++) {
+    if (s[i] == '\\') {
+      if (s[i+1] == 'u') {
+        if ((i + 5) >= len ||
+            !strchr(hexstr, s[i+2]) || !strchr(hexstr, s[i+3]) ||
+            !strchr(hexstr, s[i+4]) || !strchr(hexstr, s[i+5])) {
+          snprintf(errbuf, sizeof(errbuf), "Invalid escape sequence");
+          yyerror(errbuf);
+        }
+      }
+      if (!strchr("\"\\/bfnrt", s[i+1])) {
+        snprintf(errbuf, sizeof(errbuf), "Invalid escape char: %c", s[i+1]);
+        yyerror(errbuf);
+      }
+    }
+  }
   yy_json_string.s = s;
   yy_json_string.len = len;
   yylval = &yy_json_string;
