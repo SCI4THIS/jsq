@@ -54,6 +54,7 @@ json_t **build_json_harness(args_t *args)
   size_t                  n       = args->n;
   json_parser_t         **p       = NULL;
   json_t                **j       = NULL;
+  size_t                  siz     = 0;
   size_t                  p_siz   = 0;
   size_t                  j_siz   = 0;
   mmap_file_t            **mm     = calloc(n, sizeof(mmap_file_t *));
@@ -63,7 +64,8 @@ json_t **build_json_harness(args_t *args)
     mm[i] = mmap_file(args->fn[i]);
     p_siz += json_parser(mmap_file_buf(mm[i]), mmap_file_size(mm[i]), NULL);
   }
-  p = calloc(1, n * sizeof(json_parser_t *) + p_siz);
+  siz = n * sizeof(json_parser_t *) + p_siz;
+  p = calloc(1, siz);
   data = (char *)&p[n];
   p_siz = 0;
   for (i=0; i<n; i++) {
@@ -71,7 +73,8 @@ json_t **build_json_harness(args_t *args)
     p_siz += json_parser(mmap_file_buf(mm[i]), mmap_file_size(mm[i]), p[i]);
     j_siz += json(p[i], NULL);
   }
-  j = calloc(1, n * sizeof(json_t *) + j_siz);
+  siz = n * sizeof(json_t *) + j_siz;
+  j = calloc(1, siz);
   data = (char *)&j[n];
   j_siz = 0;
   for (i=0; i<n; i++) {

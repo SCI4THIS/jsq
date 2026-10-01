@@ -42,6 +42,7 @@ void *yy_handle_root(json_value_t *v);
 %token T_num_integer
 %token T_num_double
 %token T_null
+%token T_error
 
 %%
 

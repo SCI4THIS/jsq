@@ -58,7 +58,7 @@ double sntod(const char *s, int len)
 
 requires a string matching this regex:
 
-[-+]?[0-9]*[.][0-9]+
+[-+]?[0-9]*[.]?[0-9]+
 
 */
   double val = 0.0;
@@ -93,7 +93,7 @@ requires a string matching this regex:
   return sign * val;
 }
 
-int sntoi(const char *s, int len)
+static int sntoi(const char *s, int len, bool *is_overflow)
 {
 /*
 
@@ -105,6 +105,7 @@ requires a string matching this regex:
   int val = 0;
   int i = 0;
   int sign = 1;
+  *is_overflow = false;
   if (s[i] == '+') {
     i++;
   } else if (s[i] == '-') {
@@ -112,7 +113,9 @@ requires a string matching this regex:
     i++;
   }
   for (; i<len; i++) {
-    val = val * 10 + (s[i] - '0');
+    int next = val * 10 + (s[i] - '0');
+    if (next < val) { *is_overflow = true; }
+    val = next;
   }
   return sign * val;
 }
@@ -127,6 +130,7 @@ requires a string matching this regex:
 
 */
   int i;
+  bool is_overflow;
   double coefficient = 0.0;
   double scalar = 1.0;
   unsigned int exponent;
@@ -146,7 +150,7 @@ requires a string matching this regex:
     accum = 0.1;
     i++;
   }
-  exponent = sntoi(&s[i], len - i);
+  exponent = sntoi(&s[i], len - i, &is_overflow);
   for(int j=0; j<8*sizeof(exponent); j++) {
     unsigned int pos = 1 << j;
     if (exponent & pos) {
@@ -161,7 +165,11 @@ requires a string matching this regex:
 
 int handle_integer(const char *s, int len)
 {
-  int val = sntoi(s, len);
+  bool is_overflow;
+  int val = sntoi(s, len, &is_overflow);
+  if (is_overflow) {
+    return handle_double(s, len);
+  }
   yy_json_int.n = val;
   yylval = &yy_json_int;
   return T_num_integer;
@@ -210,12 +218,24 @@ int handle_string(const char *s, int len)
             !strchr(hexstr, s[i+4]) || !strchr(hexstr, s[i+5])) {
           snprintf(errbuf, sizeof(errbuf), "Invalid escape sequence");
           yyerror(errbuf);
+          return T_error;
         }
+        if (s[i+2] == '0' && s[i+3] == '0') {
+          if (s[i+4] == '0' || s[i+4] == '1') {
+            snprintf(errbuf, sizeof(errbuf), "Invalid u-code");
+            yyerror(errbuf);
+            return T_error;
+          }
+        }
+        i += 5;
+        continue;
       }
       if (!strchr("\"\\/bfnrt", s[i+1])) {
         snprintf(errbuf, sizeof(errbuf), "Invalid escape char: %c", s[i+1]);
         yyerror(errbuf);
+        return T_error;
       }
+      i++;
     }
   }
   yy_json_string.s = s;

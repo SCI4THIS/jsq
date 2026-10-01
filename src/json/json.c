@@ -271,8 +271,9 @@ void json_defrag(json_t *j)
 
 bool json_string_eq_s(json_string_t *s1, const char *s2)
 {
-  size_t len = strlen(s2);
+  size_t len;
   if (s1 == NULL || s2 == NULL) { return false; }
+  len = strlen(s2);
   if (s1->len == len && memcmp(s1->s, s2, len) == 0) {
     return true;
   }
