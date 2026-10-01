@@ -90,6 +90,7 @@ value:
 | T_num_integer { $$ = yy_handle_value(JSON_VALUE_TYPE_INT, yy_handle_int($1)); }
 | T_num_double { $$ = yy_handle_value(JSON_VALUE_TYPE_DOUBLE, yy_handle_double($1)); }
 | T_null    { $$ = yy_handle_value(JSON_VALUE_TYPE_NULL, NULL); }
+| T_error   { YYABORT; }
 ;
 
 %%

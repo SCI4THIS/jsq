@@ -488,6 +488,7 @@ size_t json(json_parser_t *p, json_t *j)
 {
   json_t dummy;
   void *yy_buffer_state = NULL;
+  int rc;
 
   yy_set_parser(p);
   yy_set_json(j);
@@ -500,8 +501,12 @@ size_t json(json_parser_t *p, json_t *j)
   json_parser_reset(p);
   yy_buffer_state = yy_scan_bytes(p->s, p->siz);
   line = 1;
-  yyparse();
+  rc = yyparse();
   yylex_destroy();
+
+  if (rc == 1) {
+    return 0;
+  }
 
   return json_assign_entries(p, j);
 }

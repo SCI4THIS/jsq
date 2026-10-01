@@ -33,10 +33,16 @@ args_t *args_parse(int argc, char **argv)
     }
   }
 
+  if (n > MAX_FILES) {
+    fprintf(stderr, "Too many files\n");
+    return NULL;
+  }
+
   siz = sizeof(args_t);
   siz += n * sizeof(const char *);
   siz += n * sizeof(json_t *);
   args = calloc(1, siz);
+  if (!args) { abort(); }
   args->mode = mode;
 
   i = 0;

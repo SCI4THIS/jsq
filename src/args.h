@@ -1,6 +1,9 @@
 #ifndef ARGS_H__
 #define ARGS_H__ 1
 
+#define MAX_FILE_SIZE (1024 * 1024 * 8)
+#define MAX_FILES 1024
+
 #include <mmap_file.h>
 #include "json.h"
 #include "schema.h"

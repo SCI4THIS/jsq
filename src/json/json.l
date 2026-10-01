@@ -22,7 +22,7 @@ int  handle_true(const char *s, int len);
 int  handle_false(const char *s, int len);
 int  handle_null(const char *s, int len);
 int  handle_string(const char *s, int len);
-void handle_error(const char *s);
+int  handle_error(const char *s);
 size_t yy_compute_offset(const uint8_t *s);
 %}
 
@@ -253,10 +253,11 @@ int handle_string(const char *s, int len)
   return T_string;
 }
 
-void handle_error(const char *s)
+int handle_error(const char *s)
 {
   snprintf(errbuf, sizeof(errbuf), "Unexpected char: %c", *yytext);
   yyerror(errbuf);
+  return T_error;
 }
 
 void *yyalloc(size_t bytes)

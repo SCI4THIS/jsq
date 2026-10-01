@@ -5,8 +5,6 @@
 #include "parser.h"
 #include "args.h"
 
-#define MAX_FILE_SIZE (1024 * 1024 * 8)
-
 int yywrap(void)
 {
   /* This is for stream-based parsing.  This tool is designed for
@@ -31,10 +29,18 @@ json_t *build_json(const char *fn)
 
   psiz = json_parser(mmap_file_buf(mm), mmap_file_size(mm), NULL);
   p = (json_parser_t *)calloc(1, psiz);
+  if (!p) { abort(); }
   json_parser(mmap_file_buf(mm), mmap_file_size(mm), p);
 
   jsiz = json(p, NULL);
+  if (jsiz == 0) {
+    fprintf(stderr, "Invalid JSON: %s\n", fn);
+    free(p);
+    mmap_file_free(mm);
+    return NULL;
+  }
   j = (json_t *)calloc(1, jsiz);
+  if (!j) { abort(); }
   json(p, j);
 
   free(p);
@@ -50,6 +56,7 @@ json_schema_t *build_json_schema(const char *fn)
   if (j == NULL) { return NULL; }
   size_t siz = json_schema(j, &args, NULL);
   js = calloc(1, siz);
+  if (!js) { abort(); }
   json_schema(j, &args, js);
   free(j);
   return js;
@@ -64,8 +71,11 @@ json_t **build_json_harness(args_t *args)
   size_t                  siz     = 0;
   size_t                  p_siz   = 0;
   size_t                  j_siz   = 0;
-  mmap_file_t            **mm     = calloc(n, sizeof(mmap_file_t *));
+  mmap_file_t            **mm     = NULL;
   char                   *data    = NULL;
+
+  mm = calloc(n, sizeof(mmap_file_t *));
+  if (!mm) { abort(); }
 
   for (i=0; i<n; i++) {
     mm[i] = mmap_file(args->fn[i], MAX_FILE_SIZE);
@@ -77,6 +87,7 @@ json_t **build_json_harness(args_t *args)
   }
   siz = n * sizeof(json_parser_t *) + p_siz;
   p = calloc(1, siz);
+  if (!p) { abort(); }
   data = (char *)&p[n];
   p_siz = 0;
   for (i=0; i<n; i++) {
@@ -86,6 +97,7 @@ json_t **build_json_harness(args_t *args)
   }
   siz = n * sizeof(json_t *) + j_siz;
   j = calloc(1, siz);
+  if (!j) { abort(); }
   data = (char *)&j[n];
   j_siz = 0;
   for (i=0; i<n; i++) {
@@ -116,11 +128,14 @@ void compile(args_t *args)
   j = build_json_harness(args);
   if (j == NULL) { return; }
   js_args = calloc(n, sizeof(json_schema_args_t));
+  if (!js_args) { abort(); }
   jsh_siz = json_schema_harness(n, j, js_args, NULL);
   jsh = calloc(1, jsh_siz);
+  if (!jsh) { abort(); }
   json_schema_harness(n, j, js_args, jsh);
   len = json_schema_harness_write(jsh, NULL, 0);
   buf = malloc(len);
+  if (!buf) { abort(); }
   json_schema_harness_write(jsh, buf, len);
   f = fopen(args->io_fn, "wb");
   if (f) {
@@ -155,6 +170,7 @@ void classify(args_t *args)
     return;
   }
   jsh = calloc(1, siz);
+  if (!jsh) { abort(); }
   json_schema_harness_read(mmap_file_buf(mm), mmap_file_size(mm), jsh);
   mmap_file_free(mm);
 
