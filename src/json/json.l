@@ -113,9 +113,12 @@ requires a string matching this regex:
     i++;
   }
   for (; i<len; i++) {
-    int next = val * 10 + (s[i] - '0');
-    if (next < val) { *is_overflow = true; }
-    val = next;
+    int digit = s[i] - '0';
+    if (val > (INT_MAX - digit) / 10) {
+      *is_overflow = true;
+      return 0;
+    }
+    val = val * 10 + digit;
   }
   return sign * val;
 }
@@ -151,6 +154,11 @@ requires a string matching this regex:
     i++;
   }
   exponent = sntoi(&s[i], len - i, &is_overflow);
+  if (is_overflow) {
+    snprintf(errbuf, sizeof(errbuf), "Exponent overflow");
+    yyerror(errbuf);
+    return T_error;
+  }
   for(int j=0; j<8*sizeof(exponent); j++) {
     unsigned int pos = 1 << j;
     if (exponent & pos) {

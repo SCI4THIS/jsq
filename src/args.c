@@ -16,7 +16,6 @@ args_t *args_parse(int argc, char **argv)
   size_t i = 2;
   size_t j = 0;
   size_t siz = 0;
-  size_t siz_tally = 0;
   size_t n = argc - 1;
   args_mode_t mode = MODE_CLASSIFY;
   if (argc < 2) {
@@ -35,9 +34,8 @@ args_t *args_parse(int argc, char **argv)
   }
 
   siz = sizeof(args_t);
-  siz = n * sizeof(const char *);
-  siz = n * sizeof(json_schema_t *);
-  siz = n * sizeof(json_t *);
+  siz += n * sizeof(const char *);
+  siz += n * sizeof(json_t *);
   args = calloc(1, siz);
   args->mode = mode;
 
