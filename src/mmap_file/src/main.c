@@ -23,7 +23,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "usage: %s <file>\n", argv[0]);
     return 0;
   }
-  mm = mmap_file(argv[1]);
+  mm = mmap_file(argv[1], 1000000);
   if (mm == NULL) {
     goto err;
   }

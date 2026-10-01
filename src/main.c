@@ -5,6 +5,7 @@
 #include "parser.h"
 #include "args.h"
 
+#define MAX_FILE_SIZE (1024 * 1024 * 8)
 
 int yywrap(void)
 {
@@ -18,10 +19,15 @@ json_t *build_json(const char *fn)
 {
   json_t *j = NULL;
   const char *key = fn;
-  mmap_file_t *mm = mmap_file(key);
+  mmap_file_t *mm = mmap_file(key, MAX_FILE_SIZE);
   json_parser_t *p = NULL;
   size_t psiz;
   size_t jsiz;
+
+  if (mm == NULL) {
+    fprintf(stderr, "Error opening file: %s\n", fn);
+    return NULL;
+  }
 
   psiz = json_parser(mmap_file_buf(mm), mmap_file_size(mm), NULL);
   p = (json_parser_t *)calloc(1, psiz);
@@ -41,6 +47,7 @@ json_schema_t *build_json_schema(const char *fn)
   json_schema_t *js;
   json_schema_args_t args = { 0 };
   json_t *j = build_json(fn);
+  if (j == NULL) { return NULL; }
   size_t siz = json_schema(j, &args, NULL);
   js = calloc(1, siz);
   json_schema(j, &args, js);
@@ -61,7 +68,11 @@ json_t **build_json_harness(args_t *args)
   char                   *data    = NULL;
 
   for (i=0; i<n; i++) {
-    mm[i] = mmap_file(args->fn[i]);
+    mm[i] = mmap_file(args->fn[i], MAX_FILE_SIZE);
+    if (mm[i] == NULL) {
+      fprintf(stderr, "Error opening file %s\n", args->fn[i]);
+      goto err;
+    }
     p_siz += json_parser(mmap_file_buf(mm[i]), mmap_file_size(mm[i]), NULL);
   }
   siz = n * sizeof(json_parser_t *) + p_siz;
@@ -84,8 +95,9 @@ json_t **build_json_harness(args_t *args)
   for (i=0; i<n; i++) {
     mmap_file_free(mm[i]);
   }
-  free(mm);
   free(p);
+err:
+  free(mm);
   return j;
 }
 
@@ -102,6 +114,7 @@ void compile(args_t *args)
   FILE                   *f       = NULL;
 
   j = build_json_harness(args);
+  if (j == NULL) { return; }
   js_args = calloc(n, sizeof(json_schema_args_t));
   jsh_siz = json_schema_harness(n, j, js_args, NULL);
   jsh = calloc(1, jsh_siz);
@@ -127,7 +140,7 @@ void classify(args_t *args)
 {
   size_t                 siz = 0;
   json_schema_harness_t *jsh = NULL;
-  mmap_file_t           *mm  = mmap_file(args->io_fn);
+  mmap_file_t           *mm  = mmap_file(args->io_fn, MAX_FILE_SIZE);
   size_t                 i   = 0;
 
   if (!mm) {
@@ -152,6 +165,7 @@ void classify(args_t *args)
   for (i=0; i<args->n; i++) {
     size_t idx;
     json_t *j = build_json(args->fn[i]);
+    if (j == NULL) { continue; }
     idx = json_schema_harness_classify(jsh, j);
     printf("[%zu]: %s\n", idx, args->fn[i]);
     free(j);

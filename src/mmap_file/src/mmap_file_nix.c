@@ -13,7 +13,7 @@ struct mmap_file_st {
   const unsigned char *buf;
 };
 
-mmap_file_t *mmap_file(const char *fn)
+mmap_file_t *mmap_file(const char *fn, size_t max)
 {
   mmap_file_t *mm   = NULL;
   int          fd   = 0;
@@ -26,6 +26,10 @@ mmap_file_t *mmap_file(const char *fn)
   }
 
   if (fstat(fd, &sb) == -1) {
+    goto err2;
+  }
+
+  if (sb.st_size >= max) {
     goto err2;
   }
 

@@ -1,5 +1,6 @@
 %{
 #define DEBUG 0
+#include <limits.h>
 #include "json.h"
 #include "parser.h"
 #include "json_int.h"
